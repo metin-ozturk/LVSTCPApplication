@@ -6,10 +6,7 @@ import android.net.nsd.NsdServiceInfo
 import android.os.Handler
 import android.util.Log
 import androidx.core.content.ContextCompat.getSystemService
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.EOFException
@@ -42,7 +39,7 @@ object LVSTCPManager {
 
     private var connectedClients: MutableList<Socket> = CopyOnWriteArrayList()
 
-    private var hostAfterHandler: Handler? = null
+    private var hostAfterJob: Job? = null
 
     private var discoveryManager: NsdManager? = null
 
@@ -67,7 +64,7 @@ object LVSTCPManager {
         }
 
         override fun onServiceFound(service: NsdServiceInfo?) {
-            hostAfterHandler?.removeCallbacksAndMessages(null)
+            hostAfterJob?.cancel()
             Log.i("LVSRND", "Service Found")
 
             discoveryManager?.resolveService(service, resolveListener)
@@ -136,10 +133,12 @@ object LVSTCPManager {
         discoveryManager = getSystemService(context, NsdManager::class.java)
         discoverHosts()
 
-        hostAfterHandler = Handler()
-        hostAfterHandler?.postDelayed({
+        hostAfterJob = CoroutineScope(Dispatchers.IO).launch {
+            delay(3000)
             checkIfDiscoveredAndConnectedToASocket()
-        }, 3000)
+            hostAfterJob?.cancel()
+        }
+
     }
 
     fun stopTCPManager() {

@@ -6,6 +6,8 @@ import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.params.OutputConfiguration
+import android.hardware.camera2.params.SessionConfiguration
 import android.media.MediaCodec
 import android.media.MediaRecorder
 import android.os.Handler
@@ -77,7 +79,7 @@ object LVSCameraManager {
 
         camera = openCamera(cameraManager, cameraManager.cameraIdList.first(), cameraHandler)
 
-        session = createCaptureSession(camera, listOf(this@LVSCameraManager.previewSurface, encodingSurface), cameraHandler)
+        session = createCaptureSession(camera, listOf(this@LVSCameraManager.previewSurface, encodingSurface), cameraHandler, context)
 
         session.setRepeatingRequest(previewRequest, null, cameraHandler)
         session.setRepeatingRequest(encodingRequest, null, cameraHandler)
@@ -123,20 +125,35 @@ object LVSCameraManager {
         }, handler)
     }
 
-    private suspend fun createCaptureSession(device: CameraDevice, targets: List<Surface>, handler: Handler? = null): CameraCaptureSession = suspendCoroutine { cont ->
+    private suspend fun createCaptureSession(device: CameraDevice, targets: List<Surface>, handler: Handler? = null, context: Context): CameraCaptureSession = suspendCoroutine { cont ->
 
         // Creates a capture session using the predefined targets, and defines a session state
         // callback which resumes the coroutine once the session is configured
-        device.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            val outputConfigs = targets.map { OutputConfiguration(it) }
+            val sessionConfig = SessionConfiguration(SessionConfiguration.SESSION_REGULAR, outputConfigs, context.mainExecutor, object: CameraCaptureSession.StateCallback() {
 
-            override fun onConfigured(session: CameraCaptureSession) = cont.resume(session)
+                override fun onConfigured(session: CameraCaptureSession) = cont.resume(session)
 
-            override fun onConfigureFailed(session: CameraCaptureSession) {
-                val exc = RuntimeException("Camera ${device.id} session configuration failed")
-                Log.e("LVSRND", exc.message, exc)
-                cont.resumeWithException(exc)
-            }
-        }, handler)
+                override fun onConfigureFailed(session: CameraCaptureSession) {
+                    val exc = RuntimeException("Camera ${device.id} session configuration failed")
+                    Log.e("LVSRND", exc.message, exc)
+                    cont.resumeWithException(exc)
+                }
+            })
+            device.createCaptureSession(sessionConfig)
+        } else {
+            device.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
+
+                override fun onConfigured(session: CameraCaptureSession) = cont.resume(session)
+
+                override fun onConfigureFailed(session: CameraCaptureSession) {
+                    val exc = RuntimeException("Camera ${device.id} session configuration failed")
+                    Log.e("LVSRND", exc.message, exc)
+                    cont.resumeWithException(exc)
+                }
+            }, handler)
+        }
     }
 
     private fun createRecorder(surface: Surface) = MediaRecorder().apply {
