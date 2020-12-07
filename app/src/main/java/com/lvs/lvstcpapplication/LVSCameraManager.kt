@@ -71,7 +71,7 @@ object LVSCameraManager {
     }
 
     private val encodingRequest: CaptureRequest by lazy {
-        session.device.createCaptureRequest(CameraDevice.TEMPLATE_ZERO_SHUTTER_LAG).apply {
+        session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
             addTarget(previewSurface)
             addTarget(encodingSurface)
             addTarget(recordingSurface)
