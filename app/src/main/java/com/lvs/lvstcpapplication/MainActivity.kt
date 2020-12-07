@@ -41,6 +41,7 @@ import kotlin.coroutines.suspendCoroutine
 class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface, LVSEncoder.LVSEncoderDelegate, LVSCameraManager.LVSCameraManagerDelegate {
 
     private var cameraView : SurfaceView? = null
+    private var isPreviewSurfaceCreated = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +55,16 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface, 
         LVSEncoder.delegate = this
         LVSTCPManager.startTCPManager(this)
         LVSCameraManager.delegate = this
+
+        cameraView = findViewById(R.id.camera_view)
+
+        cameraView!!.holder!!.addCallback(object : SurfaceHolder.Callback {
+            override fun surfaceCreated(p0: SurfaceHolder) { isPreviewSurfaceCreated = true }
+
+            override fun surfaceChanged(p0: SurfaceHolder, p1: Int, p2: Int, p3: Int) = Unit
+
+            override fun surfaceDestroyed(p0: SurfaceHolder) = Unit
+        })
     }
 
     override fun onDestroy() {
@@ -72,25 +83,7 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface, 
     }
 
     private fun initializeCameraView() {
-        cameraView = findViewById(R.id.camera_view)
-
-        cameraView!!.holder!!.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(p0: SurfaceHolder) {
-                Log.i("OSMAN", "99")
-            }
-
-            override fun surfaceChanged(p0: SurfaceHolder, p1: Int, p2: Int, p3: Int) {
-                Log.i("OSMAN", "100")
-
-            }
-
-            override fun surfaceDestroyed(p0: SurfaceHolder) {
-                Log.i("OSMAN", "101")
-            }
-        })
-
-        cameraView?.post { LVSCameraManager.initializeCameraManager(this, AtomicReference(cameraView!!.holder.surface)) }
-
+        if (isPreviewSurfaceCreated) cameraView?.post { LVSCameraManager.initializeCameraManager(this, AtomicReference(cameraView!!.holder.surface)) }
     }
 
     // LVSTCPMANAGER Interface Methods
@@ -110,7 +103,7 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface, 
 
     // LVSEncoderDelegate Interface Methods
     override fun onDataAvailable(byteBuffer: ByteBuffer) {
-        LVSTCPManager.sendEncodedData(byteBuffer)
+        LVSTCPManager.sendEncodedData(LVSTCPDataType.VideoData ,byteBuffer)
     }
 
     // LVSCameraManager Interface Methods

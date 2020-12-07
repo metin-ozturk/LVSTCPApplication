@@ -25,3 +25,9 @@ object LVSConstants {
         setInteger(MediaFormat.KEY_PRIORITY, 0x00)
     }
 }
+
+enum class LVSTCPDataType(val value: Int) {
+    VideoData(1),
+    RecordingData(2),
+    DrawingData(3)
+}

@@ -151,7 +151,8 @@ object LVSTCPManager {
         discoveryManager?.unregisterService(registrationListener)
     }
 
-    fun sendEncodedData(byteBuffer: ByteBuffer) {
+    fun sendEncodedData(dataType: LVSTCPDataType, byteBuffer: ByteBuffer) {
+        outputStream?.writeInt(dataType.value)
         outputStream?.writeInt(byteBuffer.limit())
         outputStream?.write(byteBuffer.array())
     }
@@ -194,22 +195,33 @@ object LVSTCPManager {
 
                         try {
                             while (true) {
+                                val dataType = inputStream?.readInt() ?: continue
                                 val dataLength = inputStream?.readInt() ?: continue
                                 val data = ByteArray(dataLength)
-
                                 inputStream?.readFully(data)
-                                when {
-                                    pps != null -> {
-                                        delegate?.retrievedData(data)
+
+                                when (dataType) {
+                                    LVSTCPDataType.VideoData.value -> {
+                                        when {
+                                            pps != null -> {
+                                                delegate?.retrievedData(data)
+                                            }
+                                            sps == null -> {
+                                                sps = data
+                                            }
+                                            pps == null -> {
+                                                pps = data
+                                                delegate?.startedToHost(sps!!, pps!!)
+                                            }
+                                        }
                                     }
-                                    sps == null -> {
-                                        sps = data
-                                    }
-                                    pps == null -> {
-                                        pps = data
-                                        delegate?.startedToHost(sps!!, pps!!)
-                                    }
+
+                                    LVSTCPDataType.RecordingData.value -> Log.i("LVSRND", "Received Recording Data.")
+                                    LVSTCPDataType.DrawingData.value -> Log.i("LVSRND", "Received Drawing Data.")
+                                    else -> Log.i("LVSRND", "Received unknown data type.")
                                 }
+
+
 
                             }
                         } catch (e: EOFException) {

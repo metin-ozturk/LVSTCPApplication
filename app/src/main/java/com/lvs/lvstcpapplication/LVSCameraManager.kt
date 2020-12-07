@@ -42,6 +42,8 @@ object LVSCameraManager {
 
     private lateinit var previewSurface: Surface
 
+    private var dummyFile: File? = null
+
     private val encodingSurface: Surface by lazy {
         val surface = MediaCodec.createPersistentInputSurface()
         createRecorder(surface).apply {
@@ -85,9 +87,12 @@ object LVSCameraManager {
 
     fun stopCameraManager() {
         session.stopRepeating()
+        session.close()
         encodingSurface.release()
         previewSurface.release()
-
+        cameraHandler.removeCallbacksAndMessages(null)
+        cameraThread.interrupt()
+        dummyFile?.delete()
     }
 
     @SuppressLint("MissingPermission")
@@ -147,6 +152,6 @@ object LVSCameraManager {
 
     private fun createFile(context: Context, extension: String): File {
         val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
-        return File(context.filesDir, "VID_${sdf.format(Date())}.$extension")
+        return File(context.filesDir, "VID_${sdf.format(Date())}.$extension").also { dummyFile = it }
     }
 }
