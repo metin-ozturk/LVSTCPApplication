@@ -7,11 +7,16 @@
     android:orientation="vertical"
     tools:context=".MainActivity">
 
+    <Button
+        android:id="@+id/record_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Start Recording" />
+
     <SurfaceView
         android:id="@+id/camera_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         />
-
 
 </LinearLayout>

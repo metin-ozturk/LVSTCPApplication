@@ -19,6 +19,7 @@ import android.util.Log
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -43,12 +44,26 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface, 
     private var cameraView : SurfaceView? = null
     private var isPreviewSurfaceCreated = false
 
+    private var isBeingRecorded = false
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 42)
+        }
+
+        val recordButton = findViewById<Button>(R.id.record_button)
+        recordButton.setOnClickListener {
+            if (!isBeingRecorded) {
+                recordButton.text = "Stop Recording"
+                LVSCameraManager.startRecording()
+            } else {
+                recordButton.text = "Start Recording"
+                LVSCameraManager.stopRecording()
+            }
+
+            isBeingRecorded = !isBeingRecorded
         }
 
         LVSTCPManager.delegate = this
@@ -65,10 +80,11 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface, 
 
             override fun surfaceDestroyed(p0: SurfaceHolder) = Unit
         })
+
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
+    override fun onStop() {
+        super.onStop()
 
         LVSEncoder.delegate = null
         LVSTCPManager.delegate = null
@@ -82,11 +98,12 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface, 
         cameraView!!.holder.surface.release()
     }
 
+
     private fun initializeCameraView() {
         if (isPreviewSurfaceCreated) cameraView?.post { LVSCameraManager.initializeCameraManager(this, AtomicReference(cameraView!!.holder.surface)) }
     }
 
-    // LVSTCPMANAGER Interface Methods
+    // LVSTCPManager Interface Methods
 
     override fun connectedToHost() {
         initializeCameraView()

@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.Surface
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.lang.Exception
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.ByteBuffer
@@ -24,7 +25,20 @@ object LVSEncoder: MediaCodec.Callback() {
     private var encodingConfigSent = false
 
     init {
-        encoder.configure(LVSConstants.encodingVideoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        while (true) {
+            try {
+                Log.i("LVSRND", "Encoding FPS: ${LVSConstants.fps}")
+                encoder.configure(LVSConstants.encodingVideoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                break
+            } catch(e: MediaCodec.CodecException) {
+                if (e.errorCode == -1010) {
+                    LVSConstants.fps /= 2
+                } else {
+                    Log.i("LVSRND", "Unexpected Codec Error, Code: ${e.errorCode}")
+                }
+            }
+        }
+
         encoder.setCallback(this)
     }
 
