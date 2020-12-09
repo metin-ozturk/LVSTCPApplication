@@ -72,8 +72,6 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
         lvsCameraClient = LVSCameraClient.connectToCamera(application.applicationContext)
         lvsCameraClient?.setOnCameraNetworkListener(this)
 
-        lvsCameraClient?.startCapture()
-
         cameraView = findViewById(R.id.camera_view)
 
         cameraView?.holder?.addCallback(object : SurfaceHolder.Callback {
@@ -232,6 +230,9 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
         receiverButton?.setOnClickListener {
             transmitterButton?.visibility = View.GONE
             receiverButton?.visibility = View.GONE
+
+            lvsCameraView?.visibility = View.VISIBLE
+            lvsCameraClient?.startCapture()
 
             LVSTCPManager.startTCPManager(this, true)
         }
