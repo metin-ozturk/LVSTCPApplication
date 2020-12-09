@@ -1,15 +1,10 @@
-package com.lvs.lvstcpapplication
+package com.lvs.lvstcpapplication.coders
 
 import android.media.MediaCodec
-import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.util.Log
 import android.view.Surface
-import java.io.DataInputStream
-import java.io.DataOutputStream
-import java.lang.Exception
-import java.net.ServerSocket
-import java.net.Socket
+import com.lvs.lvstcpapplication.LVSConstants
 import java.nio.ByteBuffer
 
 
@@ -25,6 +20,10 @@ object LVSEncoder: MediaCodec.Callback() {
     private var encodingConfigSent = false
 
     init {
+        encoder.setCallback(this)
+    }
+
+    fun initializeAndStartEncoder(encodingSurface: Surface) {
         while (true) {
             try {
                 Log.i("LVSRND", "Encoding FPS: ${LVSConstants.fps}")
@@ -39,10 +38,6 @@ object LVSEncoder: MediaCodec.Callback() {
             }
         }
 
-        encoder.setCallback(this)
-    }
-
-    fun initializeAndStartEncoder(encodingSurface: Surface) {
         encoder.setInputSurface(encodingSurface)
         encoder.start()
     }

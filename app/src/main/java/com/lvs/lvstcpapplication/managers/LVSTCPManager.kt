@@ -1,11 +1,12 @@
-package com.lvs.lvstcpapplication
+package com.lvs.lvstcpapplication.managers
 
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
-import android.os.Handler
 import android.util.Log
 import androidx.core.content.ContextCompat.getSystemService
+import com.lvs.lvstcpapplication.LVSConstants
+import com.lvs.lvstcpapplication.LVSTCPDataType
 import kotlinx.coroutines.*
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -39,8 +40,6 @@ object LVSTCPManager {
 
     private var connectedClients: MutableList<Socket> = CopyOnWriteArrayList()
 
-    private var hostAfterJob: Job? = null
-
     private var discoveryManager: NsdManager? = null
 
     private val discoveryListener = object: NsdManager.DiscoveryListener {
@@ -64,7 +63,6 @@ object LVSTCPManager {
         }
 
         override fun onServiceFound(service: NsdServiceInfo?) {
-            hostAfterJob?.cancel()
             Log.i("LVSRND", "Service Found")
 
             discoveryManager?.resolveService(service, resolveListener)
@@ -129,16 +127,13 @@ object LVSTCPManager {
 
     }
 
-    fun startTCPManager(context: Context) {
+    fun startTCPManager(context: Context, asHost: Boolean) {
         discoveryManager = getSystemService(context, NsdManager::class.java)
         discoverHosts()
 
-        hostAfterJob = CoroutineScope(Dispatchers.IO).launch {
-            delay(3000)
+        if (asHost) {
             checkIfDiscoveredAndConnectedToASocket()
-            hostAfterJob?.cancel()
         }
-
     }
 
     fun stopTCPManager() {
@@ -196,11 +191,12 @@ object LVSTCPManager {
                             while (true) {
                                 val dataType = inputStream?.readInt() ?: continue
                                 val dataLength = inputStream?.readInt() ?: continue
-                                val data = ByteArray(dataLength)
-                                inputStream?.readFully(data)
 
                                 when (dataType) {
                                     LVSTCPDataType.VideoData.value -> {
+                                        val data = ByteArray(dataLength)
+                                        inputStream?.readFully(data)
+
                                         when {
                                             pps != null -> {
                                                 delegate?.retrievedData(data)
@@ -217,6 +213,11 @@ object LVSTCPManager {
 
                                     LVSTCPDataType.RecordingData.value -> Log.i("LVSRND", "Received Recording Data.")
                                     LVSTCPDataType.DrawingData.value -> Log.i("LVSRND", "Received Drawing Data.")
+                                    LVSTCPDataType.VideoConfigurationData.value -> {
+                                        LVSConstants.fps = inputStream?.readInt() ?: continue
+                                        LVSConstants.bitRate = inputStream?.readInt() ?: continue
+                                        Log.i("LVSRND", "Received Video Configuration Data; FPS: ${LVSConstants.fps} Bitrate: ${LVSConstants.bitRate}.")
+                                    }
                                     else -> Log.i("LVSRND", "Received unknown data type.")
                                 }
 

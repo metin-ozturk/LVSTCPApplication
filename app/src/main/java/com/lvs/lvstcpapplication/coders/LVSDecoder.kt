@@ -1,9 +1,10 @@
-package com.lvs.lvstcpapplication
+package com.lvs.lvstcpapplication.coders
 
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.util.Log
 import android.view.Surface
+import com.lvs.lvstcpapplication.LVSConstants
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicReference
 
@@ -14,7 +15,6 @@ object LVSDecoder {
 
     private val codec: MediaCodec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
     private val bufferInfo = MediaCodec.BufferInfo()
-
 
     fun initializeAndStartDecoder(outputSurface: AtomicReference<Surface>, sps: ByteArray, pps: ByteArray) {
         val format = LVSConstants.decodingVideoFormat

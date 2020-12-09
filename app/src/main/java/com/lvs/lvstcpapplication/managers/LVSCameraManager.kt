@@ -1,18 +1,17 @@
-package com.lvs.lvstcpapplication
+package com.lvs.lvstcpapplication.managers
 
 import android.annotation.SuppressLint
 import android.content.Context
 import android.hardware.camera2.*
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
-import android.media.CamcorderProfile
 import android.media.MediaCodec
 import android.media.MediaRecorder
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
-import android.util.Range
 import android.view.Surface
+import com.lvs.lvstcpapplication.LVSConstants
 import kotlinx.coroutines.*
 import java.io.File
 import java.text.SimpleDateFormat
@@ -78,20 +77,20 @@ object LVSCameraManager {
         }.build()
     }
 
-
     fun initializeCameraManager(context: Context, previewSurface: AtomicReference<Surface>) = CoroutineScope(Dispatchers.Main).launch {
-        this@LVSCameraManager.previewSurface = previewSurface.get()
+        LVSCameraManager.previewSurface = previewSurface.get()
 
         createFile(context, "mp4")
         cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        getMaximumCameraFPS()?.let { LVSConstants.recordingFps = it }
         camera = openCamera(cameraManager, cameraManager.cameraIdList.first(), cameraHandler)
 
-        session = createCaptureSession(camera, listOf(this@LVSCameraManager.previewSurface, encodingSurface, recordingSurface), cameraHandler, context)
+        session = createCaptureSession(camera, listOf(LVSCameraManager.previewSurface, encodingSurface, recordingSurface), cameraHandler, context)
 
         session.setRepeatingRequest(previewRequest, null, cameraHandler)
         session.setRepeatingRequest(encodingRequest, null, cameraHandler)
 
-        delegate?.cameraInitialized(AtomicReference(this@LVSCameraManager.encodingSurface))
+        delegate?.cameraInitialized(AtomicReference(encodingSurface))
     }
 
     fun startRecording() {
@@ -111,7 +110,14 @@ object LVSCameraManager {
         previewSurface.release()
         cameraHandler.removeCallbacksAndMessages(null)
         cameraThread.interrupt()
-//        dummyFile?.delete()
+        dummyFile?.delete()
+    }
+
+    private fun getMaximumCameraFPS() : Int? {
+        val cameraId = cameraManager.cameraIdList[0]
+        val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+        val fpsRange = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES) ?: return null
+        return fpsRange.last().upper
     }
 
     @SuppressLint("MissingPermission")
@@ -179,6 +185,7 @@ object LVSCameraManager {
         setOutputFile(dummyFile!!.absolutePath)
         setVideoEncodingBitRate(LVSConstants.bitRate)
         setVideoFrameRate(LVSConstants.fps)
+        setCaptureRate(LVSConstants.fps.toDouble())
         setVideoSize(LVSConstants.width, LVSConstants.height)
         setVideoEncoder(MediaRecorder.VideoEncoder.H264)
         setInputSurface(surface)
@@ -189,6 +196,8 @@ object LVSCameraManager {
         setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
         setOutputFile(recordingFile!!.absolutePath)
         setVideoFrameRate(LVSConstants.recordingFps)
+        setCaptureRate(LVSConstants.recordingFps.toDouble())
+        setVideoEncodingBitRate(LVSConstants.recordingBitRate)
         setVideoSize(LVSConstants.width, LVSConstants.height)
         setVideoEncoder(MediaRecorder.VideoEncoder.MPEG_4_SP)
         setInputSurface(surface)

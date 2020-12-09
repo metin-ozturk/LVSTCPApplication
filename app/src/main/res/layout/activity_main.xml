@@ -7,16 +7,56 @@
     android:orientation="vertical"
     tools:context=".MainActivity">
 
-    <Button
-        android:id="@+id/record_button"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Start Recording" />
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/record_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="5dp"
+            android:layout_weight="1"
+            android:text="Start Recording"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/transmitter_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="5dp"
+            android:layout_weight="1"
+            android:text="Be Transmitter" />
+
+        <Button
+            android:id="@+id/receiver_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="5dp"
+            android:layout_weight="1"
+            android:text="Be Receiver" />
+
+    </LinearLayout>
+
+    <com.lvs.lvstcpapplication.helpers.CameraView
+        android:id="@+id/lvs_camera_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_weight="1">
+
+        <com.lvs.lvstcpapplication.helpers.CameraFrameView
+            android:id="@+id/lvs_camera_frame_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </com.lvs.lvstcpapplication.helpers.CameraView>
+
 
     <SurfaceView
         android:id="@+id/camera_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        />
+        android:layout_weight="1" />
 
 </LinearLayout>
