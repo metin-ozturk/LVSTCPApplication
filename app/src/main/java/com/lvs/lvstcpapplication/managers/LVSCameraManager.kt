@@ -117,6 +117,7 @@ object LVSCameraManager {
         val cameraId = cameraManager.cameraIdList[0]
         val characteristics = cameraManager.getCameraCharacteristics(cameraId)
         val fpsRange = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES) ?: return null
+
         return fpsRange.last().upper
     }
 
@@ -200,6 +201,7 @@ object LVSCameraManager {
         setVideoEncodingBitRate(LVSConstants.recordingBitRate)
         setVideoSize(LVSConstants.width, LVSConstants.height)
         setVideoEncoder(MediaRecorder.VideoEncoder.MPEG_4_SP)
+        setOrientationHint(90)
         setInputSurface(surface)
     }
 

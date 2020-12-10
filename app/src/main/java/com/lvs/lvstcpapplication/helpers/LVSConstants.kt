@@ -34,6 +34,7 @@ object LVSConstants {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
                 setInteger(MediaFormat.KEY_PRIORITY, 0x00)
+                setInteger(MediaFormat.KEY_ROTATION, 90)
         }
     }
 }

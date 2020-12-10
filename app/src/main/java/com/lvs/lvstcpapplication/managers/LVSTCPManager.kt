@@ -41,6 +41,7 @@ object LVSTCPManager {
     private var connectedClients: MutableList<Socket> = CopyOnWriteArrayList()
 
     private var discoveryManager: NsdManager? = null
+    private var isHost = false
 
     private val discoveryListener = object: NsdManager.DiscoveryListener {
         override fun onStartDiscoveryFailed(p0: String?, p1: Int) {
@@ -59,7 +60,7 @@ object LVSTCPManager {
         }
 
         override fun onDiscoveryStopped(p0: String?) {
-            Log.i("LVSRND", "Discovery Started")
+            Log.i("LVSRND", "Discovery Stopped")
         }
 
         override fun onServiceFound(service: NsdServiceInfo?) {
@@ -128,12 +129,11 @@ object LVSTCPManager {
     }
 
     fun startTCPManager(context: Context, asHost: Boolean) {
+        isHost = asHost
         discoveryManager = getSystemService(context, NsdManager::class.java)
-        discoverHosts()
 
-        if (asHost) {
-            checkIfDiscoveredAndConnectedToASocket()
-        }
+        if (asHost) checkIfDiscoveredAndConnectedToASocket() else discoverHosts()
+
     }
 
     fun stopTCPManager() {
@@ -141,8 +141,8 @@ object LVSTCPManager {
         outputStream?.close()
         serverSocket?.close()
         clientSocket?.close()
-        discoveryManager?.stopServiceDiscovery(discoveryListener)
-        discoveryManager?.unregisterService(registrationListener)
+
+        if (isHost) discoveryManager?.unregisterService(registrationListener) else discoveryManager?.stopServiceDiscovery(discoveryListener)
     }
 
     fun sendEncodedData(dataType: LVSTCPDataType, byteBuffer: ByteBuffer) {
@@ -157,8 +157,6 @@ object LVSTCPManager {
 
 
     private fun checkIfDiscoveredAndConnectedToASocket() {
-        discoveryManager?.stopServiceDiscovery(discoveryListener)
-
         val port: Int
         serverSocket = ServerSocket(0).also { socket ->
             // Store the chosen port.

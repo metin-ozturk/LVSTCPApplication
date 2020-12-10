@@ -1,6 +1,7 @@
 package com.lvs.lvstcpapplication
 
 import android.Manifest
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Bundle
@@ -48,6 +49,8 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
     private var lvsCameraListener: LVSCameraListener? = null
     private var lvsCameraView: CameraView? = null
 
+    private var isHost: Boolean? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -69,9 +72,6 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
         LVSEncoder.delegate = this
         LVSCameraManager.delegate = this
 
-        lvsCameraClient = LVSCameraClient.connectToCamera(application.applicationContext)
-        lvsCameraClient?.setOnCameraNetworkListener(this)
-
         cameraView = findViewById(R.id.camera_view)
 
         cameraView?.holder?.addCallback(object : SurfaceHolder.Callback {
@@ -84,17 +84,20 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
 
     }
 
-    override fun onStop() {
-        super.onStop()
+    override fun onDestroy() {
+        super.onDestroy()
 
         LVSEncoder.delegate = null
         LVSTCPManager.delegate = null
         LVSCameraManager.delegate = null
 
-        LVSTCPManager.stopTCPManager()
-        LVSEncoder.stopEncoder()
-        LVSDecoder.endDecoding()
-        LVSCameraManager.stopCameraManager()
+        if (isHost == true) {
+            LVSTCPManager.stopTCPManager()
+            LVSDecoder.endDecoding()
+        } else if (isHost == false) {
+            LVSCameraManager.stopCameraManager()
+            LVSEncoder.stopEncoder()
+        }
 
         cameraView!!.holder.surface.release()
     }
@@ -107,10 +110,12 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
     // LVSTCPManager Interface Methods
 
     override fun connectedToHost() {
+        isHost = false
         initializeCameraView()
     }
 
     override fun startedToHost(sps: ByteArray, pps: ByteArray) {
+        isHost = true
         cameraView = findViewById(R.id.camera_view)
         LVSDecoder.initializeAndStartDecoder(AtomicReference(cameraView!!.holder.surface), sps, pps)
     }
@@ -231,6 +236,8 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
             transmitterButton?.visibility = View.GONE
             receiverButton?.visibility = View.GONE
 
+            lvsCameraClient = LVSCameraClient.connectToCamera(application.applicationContext)
+            lvsCameraClient?.setOnCameraNetworkListener(this)
             lvsCameraView?.visibility = View.VISIBLE
             lvsCameraClient?.startCapture()
 
