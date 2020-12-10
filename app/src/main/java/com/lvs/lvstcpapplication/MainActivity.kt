@@ -1,16 +1,16 @@
 package com.lvs.lvstcpapplication
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.util.Log
-import android.view.Surface
-import android.view.SurfaceHolder
-import android.view.SurfaceView
-import android.view.View
+import android.view.*
 import android.widget.Button
+import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -50,6 +50,7 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
     private var lvsCameraView: CameraView? = null
 
     private var isHost: Boolean? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,6 +58,10 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 42)
+        }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CHANGE_WIFI_MULTICAST_STATE) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CHANGE_WIFI_MULTICAST_STATE), 43)
         }
 
         recordButton = findViewById(R.id.record_button)
@@ -72,6 +77,11 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
         LVSEncoder.delegate = this
         LVSCameraManager.delegate = this
 
+        val wifiManager = this.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        multicastLock = wifiManager.createMulticastLock("multicastLock")
+        multicastLock?.setReferenceCounted(true);
+        multicastLock?.acquire();
+
         cameraView = findViewById(R.id.camera_view)
 
         cameraView?.holder?.addCallback(object : SurfaceHolder.Callback {
@@ -86,6 +96,7 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
 
     override fun onDestroy() {
         super.onDestroy()
+        multicastLock?.release()
 
         LVSEncoder.delegate = null
         LVSTCPManager.delegate = null
@@ -202,7 +213,7 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
             recordButton?.visibility = View.VISIBLE
 
             val streamingFPSArray = arrayOf("15", "20", "30")
-            val streamingBitrateArray = arrayOf("4MB", "1MB", "15KB")
+            val streamingBitrateArray = arrayOf("High", "Mid", "Low")
             val alertBuilder = AlertDialog.Builder(this)
             alertBuilder.setTitle("Choose Streaming FPS:")
             alertBuilder.setItems(streamingFPSArray) { dialog, which ->
@@ -238,7 +249,16 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
 
             lvsCameraClient = LVSCameraClient.connectToCamera(application.applicationContext)
             lvsCameraClient?.setOnCameraNetworkListener(this)
+
+            val layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
+            layoutParams.height = (cameraView?.height ?: 0) / 2
+            layoutParams.width = ((9F / 16F) * layoutParams.height).toInt()
+            layoutParams.marginStart = (this.window.decorView.width - layoutParams.width) / 2
+            cameraView?.layoutParams = layoutParams
+
             lvsCameraView?.visibility = View.VISIBLE
+
+
             lvsCameraClient?.startCapture()
 
             LVSTCPManager.startTCPManager(this, true)

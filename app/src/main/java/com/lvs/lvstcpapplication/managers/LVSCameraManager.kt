@@ -118,7 +118,7 @@ object LVSCameraManager {
         val characteristics = cameraManager.getCameraCharacteristics(cameraId)
         val fpsRange = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES) ?: return null
 
-        return fpsRange.last().upper
+        return if (fpsRange.last().upper > 60) 60 else fpsRange.last().upper
     }
 
     @SuppressLint("MissingPermission")
