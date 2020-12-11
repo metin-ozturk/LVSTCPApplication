@@ -12,8 +12,11 @@ import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
 import com.lvs.lvstcpapplication.LVSConstants
+import com.lvs.lvstcpapplication.LVSTCPDataType
 import kotlinx.coroutines.*
 import java.io.File
+import java.io.FileInputStream
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
@@ -98,8 +101,24 @@ object LVSCameraManager {
     }
 
     fun stopRecording() {
-        mediaRecorder?.stop()
-        mediaRecorder?.release()
+        mediaRecorder?.pause()
+//        mediaRecorder?.stop()
+//        mediaRecorder?.release()
+
+        recordingFile?.let {
+
+            Thread {
+                val videoFileBuffer = ByteArray(1024)
+                val fileInputStream = FileInputStream(it)
+
+                while (fileInputStream.read(videoFileBuffer, 0, 1024) != -1) {
+                    LVSTCPManager.sendEncodedData(LVSTCPDataType.RecordedVideoInProgress, ByteBuffer.wrap(videoFileBuffer))
+                }
+
+                LVSTCPManager.sendEncodedData(LVSTCPDataType.RecordedVideoEnded, ByteBuffer.wrap(ByteArray(0)))
+            }.run()
+
+        }
     }
 
     fun stopCameraManager() {

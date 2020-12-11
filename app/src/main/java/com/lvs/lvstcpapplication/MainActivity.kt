@@ -27,7 +27,6 @@ import java.util.concurrent.atomic.AtomicReference
 interface LVSCameraListener {
     fun onConnected()
     fun onDisconnected()
-    fun onReceiveFrame(bitmap: Bitmap?)
 }
 
 @ExperimentalCoroutinesApi
@@ -79,8 +78,8 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
 
         val wifiManager = this.getSystemService(Context.WIFI_SERVICE) as WifiManager
         multicastLock = wifiManager.createMulticastLock("multicastLock")
-        multicastLock?.setReferenceCounted(true);
-        multicastLock?.acquire();
+        multicastLock?.setReferenceCounted(true)
+        multicastLock?.acquire()
 
         cameraView = findViewById(R.id.camera_view)
 
@@ -224,6 +223,7 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
                 }
 
                 val bitrateAlertBuilder = AlertDialog.Builder(this)
+                bitrateAlertBuilder.setTitle("Choose Streaming Quality:")
                 bitrateAlertBuilder.setItems(streamingBitrateArray) { sDialog, sWhich ->
                     LVSConstants.bitRate = when(sWhich) {
                         0 -> LVSConstants.width * LVSConstants.height * 3

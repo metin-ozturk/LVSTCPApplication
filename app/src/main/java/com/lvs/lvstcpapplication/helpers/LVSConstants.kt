@@ -43,5 +43,7 @@ enum class LVSTCPDataType(val value: Int) {
     VideoData(1),
     RecordingData(2),
     DrawingData(3),
-    VideoConfigurationData(4)
+    VideoConfigurationData(4),
+    RecordedVideoInProgress(5),
+    RecordedVideoEnded(6)
 }
