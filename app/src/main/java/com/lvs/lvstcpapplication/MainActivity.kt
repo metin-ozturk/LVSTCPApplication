@@ -38,6 +38,7 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
     private var cameraView : SurfaceView? = null
     private var isPreviewSurfaceCreated = false
 
+    private var isRecordingStopped = false
     private var isBeingRecorded = false
     private var isVideoConfigDataSent = false
 
@@ -137,6 +138,7 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
 
     // LVSEncoderDelegate Interface Methods
     override fun onDataAvailable(byteBuffer: ByteBuffer) {
+        if (isRecordingStopped) return
         if (!isVideoConfigDataSent) {
             val byteBufferToBeSent = ByteBuffer.allocate(8)
             byteBufferToBeSent.putInt(LVSConstants.fps)
@@ -199,6 +201,7 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
                 recordButton?.text = "Stop Recording"
                 LVSCameraManager.startRecording()
             } else {
+                isRecordingStopped = true
                 recordButton?.text = "Start Recording"
                 LVSCameraManager.stopRecording()
             }

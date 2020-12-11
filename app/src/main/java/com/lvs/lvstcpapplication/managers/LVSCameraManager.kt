@@ -12,8 +12,13 @@ import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
 import com.lvs.lvstcpapplication.LVSConstants
+import com.lvs.lvstcpapplication.LVSTCPDataType
 import kotlinx.coroutines.*
+import java.io.BufferedInputStream
+import java.io.DataInputStream
 import java.io.File
+import java.io.FileInputStream
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
@@ -80,7 +85,7 @@ object LVSCameraManager {
     fun initializeCameraManager(context: Context, previewSurface: AtomicReference<Surface>) = CoroutineScope(Dispatchers.Main).launch {
         LVSCameraManager.previewSurface = previewSurface.get()
 
-        createFile(context, "mp4")
+        createFile(context)
         cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         getMaximumCameraFPS()?.let { LVSConstants.recordingFps = it }
         camera = openCamera(cameraManager, cameraManager.cameraIdList.first(), cameraHandler)
@@ -98,8 +103,19 @@ object LVSCameraManager {
     }
 
     fun stopRecording() {
+        mediaRecorder?.pause()
         mediaRecorder?.stop()
         mediaRecorder?.release()
+
+        stopCameraManager()
+
+        recordingFile?.let {
+            val bgScope = CoroutineScope(Dispatchers.IO)
+            bgScope.launch {
+                sendRecordedVideo(it)
+                bgScope.cancel()
+            }
+        }
     }
 
     fun stopCameraManager() {
@@ -111,6 +127,27 @@ object LVSCameraManager {
         cameraHandler.removeCallbacksAndMessages(null)
         cameraThread.interrupt()
         dummyFile?.delete()
+    }
+
+    private fun sendRecordedVideo(videoFile: File) = runBlocking {
+        val inputStream = DataInputStream(FileInputStream(videoFile))
+        val videoFileBuffer = ByteArray(1024)
+
+        val maxLoopCount = videoFile.length().toInt() / 1024
+        val lastLoopByteSize = videoFile.length().toInt() % 1024
+        val lastVideoBuffer = ByteArray(lastLoopByteSize)
+        var loopCounter = 0
+
+        while (loopCounter < maxLoopCount) {
+            inputStream.read(videoFileBuffer, 0, 1024)
+            LVSTCPManager.sendEncodedData(LVSTCPDataType.RecordedVideoInProgress, ByteBuffer.wrap(videoFileBuffer))
+            loopCounter++
+        }
+
+        inputStream.read(lastVideoBuffer)
+        LVSTCPManager.sendEncodedData(LVSTCPDataType.RecordedVideoInProgress, ByteBuffer.wrap(lastVideoBuffer))
+
+        LVSTCPManager.sendEncodedData(LVSTCPDataType.RecordedVideoEnded, ByteBuffer.wrap(ByteArray(0)))
     }
 
     private fun getMaximumCameraFPS() : Int? {
@@ -206,9 +243,9 @@ object LVSCameraManager {
     }
 
 
-    private fun createFile(context: Context, extension: String) {
+    private fun createFile(context: Context) {
         val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
-        dummyFile = File(context.filesDir, "DUMMY_${sdf.format(Date())}.$extension")
-        recordingFile = File(context.filesDir, "ACTUAL_${sdf.format(Date())}.$extension")
+        dummyFile = File(context.filesDir, "DUMMY_${sdf.format(Date())}.mp4")
+        recordingFile = File(context.filesDir, "ACTUAL_${sdf.format(Date())}.mp4")
     }
 }

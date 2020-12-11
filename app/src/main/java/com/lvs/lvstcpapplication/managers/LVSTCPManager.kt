@@ -8,15 +8,15 @@ import androidx.core.content.ContextCompat.getSystemService
 import com.lvs.lvstcpapplication.LVSConstants
 import com.lvs.lvstcpapplication.LVSTCPDataType
 import kotlinx.coroutines.*
-import java.io.DataInputStream
-import java.io.DataOutputStream
-import java.io.EOFException
+import java.io.*
 import java.lang.Exception
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
 import java.net.UnknownHostException
 import java.nio.ByteBuffer
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
 
 object LVSTCPManager {
@@ -42,6 +42,9 @@ object LVSTCPManager {
 
     private var discoveryManager: NsdManager? = null
     private var isHost = false
+
+    private var fileOutputStream : BufferedOutputStream? = null
+    private var retrievedContext: Context? = null
 
     private val discoveryListener = object: NsdManager.DiscoveryListener {
         override fun onStartDiscoveryFailed(p0: String?, p1: Int) {
@@ -131,6 +134,7 @@ object LVSTCPManager {
     fun startTCPManager(context: Context, asHost: Boolean) {
         isHost = asHost
         discoveryManager = getSystemService(context, NsdManager::class.java)
+        retrievedContext = context
 
         if (asHost) checkIfDiscoveredAndConnectedToASocket() else discoverHosts()
 
@@ -146,6 +150,7 @@ object LVSTCPManager {
     }
 
     fun sendEncodedData(dataType: LVSTCPDataType, byteBuffer: ByteBuffer) {
+        Log.i("OSMAN", "Data Type: $dataType ${byteBuffer.capacity()}")
         outputStream?.writeInt(dataType.value)
         outputStream?.writeInt(byteBuffer.limit())
         outputStream?.write(byteBuffer.array())
@@ -189,9 +194,9 @@ object LVSTCPManager {
                             while (true) {
                                 val dataType = inputStream?.readInt() ?: continue
                                 val dataLength = inputStream?.readInt() ?: continue
-
                                 when (dataType) {
                                     LVSTCPDataType.VideoData.value -> {
+                                        Log.i("LVSRND", "Received Video Data.")
                                         val data = ByteArray(dataLength)
                                         inputStream?.readFully(data)
 
@@ -214,7 +219,25 @@ object LVSTCPManager {
                                     LVSTCPDataType.VideoConfigurationData.value -> {
                                         LVSConstants.fps = inputStream?.readInt() ?: continue
                                         LVSConstants.bitRate = inputStream?.readInt() ?: continue
-                                        Log.i("LVSRND", "Received Video Configuration Data; FPS: ${LVSConstants.fps} Bitrate: ${LVSConstants.bitRate}.")
+                                        Log.d("LVSRND", "Received Video Configuration Data; FPS: ${LVSConstants.fps} Bitrate: ${LVSConstants.bitRate}.")
+                                    }
+                                    LVSTCPDataType.RecordedVideoInProgress.value -> {
+                                        Log.d("LVSRND", "Received Recorded Video Packet")
+
+                                        if (fileOutputStream == null) {
+                                            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
+                                            val retrievedFile = File(retrievedContext?.filesDir, "RETRIEVED_${sdf.format(Date())}.mp4")
+                                            fileOutputStream = BufferedOutputStream(FileOutputStream(retrievedFile))
+                                        }
+
+                                        val retrievedData = ByteArray(dataLength)
+                                        inputStream?.readFully(retrievedData)
+                                        fileOutputStream?.write(retrievedData)
+                                    }
+
+                                    LVSTCPDataType.RecordedVideoEnded.value -> {
+                                        Log.d("LVSRND", "Recorded Video Transmission Ended")
+                                        fileOutputStream?.close()
                                     }
                                     else -> Log.i("LVSRND", "Received unknown data type.")
                                 }
