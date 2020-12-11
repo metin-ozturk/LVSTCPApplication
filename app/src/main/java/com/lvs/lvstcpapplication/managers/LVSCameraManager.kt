@@ -200,7 +200,7 @@ object LVSCameraManager {
         setCaptureRate(LVSConstants.recordingFps.toDouble())
         setVideoEncodingBitRate(LVSConstants.recordingBitRate)
         setVideoSize(LVSConstants.width, LVSConstants.height)
-        setVideoEncoder(MediaRecorder.VideoEncoder.MPEG_4_SP)
+        setVideoEncoder(MediaRecorder.VideoEncoder.DEFAULT)
         setOrientationHint(90)
         setInputSurface(surface)
     }
