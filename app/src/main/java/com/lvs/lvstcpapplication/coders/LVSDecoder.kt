@@ -52,6 +52,7 @@ object LVSDecoder {
             } else if (outputBufferIndex < 0) {
                 Log.i("LVSRND", "Unexpected Result From LVSDecoder: $outputBufferIndex")
             } else {
+                Log.i("LEYLA", "DECODED SUCCESSFULLY")
                 codec.releaseOutputBuffer(outputBufferIndex, true)
                 break
             }

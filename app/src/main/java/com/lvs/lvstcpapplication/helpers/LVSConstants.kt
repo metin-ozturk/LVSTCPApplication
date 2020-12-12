@@ -41,9 +41,11 @@ object LVSConstants {
 
 enum class LVSTCPDataType(val value: Int) {
     VideoData(1),
-    RecordingData(2),
-    DrawingData(3),
-    VideoConfigurationData(4),
-    RecordedVideoInProgress(5),
-    RecordedVideoEnded(6)
+    VideoPartialData(2),
+    VideoPartialDataTransmissionCompleted(3),
+    RecordingData(4),
+    DrawingData(5),
+    VideoConfigurationData(6),
+    RecordedVideoInProgress(7),
+    RecordedVideoEnded(8)
 }

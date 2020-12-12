@@ -146,7 +146,27 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
             LVSTCPManager.sendEncodedData(LVSTCPDataType.VideoConfigurationData, byteBufferToBeSent)
             isVideoConfigDataSent = true
         }
-        LVSTCPManager.sendEncodedData(LVSTCPDataType.VideoData ,byteBuffer)
+
+        val byteArray = byteBuffer.array()
+        val dataLength = byteArray.count()
+
+        val maxLoopCount = dataLength / 1024
+        var loopCounter = 0
+
+        while (loopCounter < maxLoopCount) {
+            val videoDataArray = byteArray.sliceArray((loopCounter * 1024) until (loopCounter * 1024 + 1024))
+            LVSTCPManager.sendEncodedData(LVSTCPDataType.VideoPartialData, ByteBuffer.wrap(videoDataArray))
+            loopCounter++
+        }
+
+        val lastLoopByteSize = dataLength % 1024
+        if (lastLoopByteSize > 0) {
+            val lastVideoArray = byteArray.sliceArray((loopCounter * 1024) until (loopCounter * 1024 + lastLoopByteSize))
+            LVSTCPManager.sendEncodedData(LVSTCPDataType.VideoPartialData, ByteBuffer.wrap(lastVideoArray))
+        }
+
+        LVSTCPManager.sendEncodedData(LVSTCPDataType.VideoPartialDataTransmissionCompleted, ByteBuffer.wrap(ByteArray(0)))
+
     }
 
     // LVSCameraManager Interface Methods

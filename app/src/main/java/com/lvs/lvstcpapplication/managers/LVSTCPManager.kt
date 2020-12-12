@@ -7,9 +7,11 @@ import android.util.Log
 import androidx.core.content.ContextCompat.getSystemService
 import com.lvs.lvstcpapplication.LVSConstants
 import com.lvs.lvstcpapplication.LVSTCPDataType
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import java.io.*
-import java.lang.Exception
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
@@ -45,6 +47,8 @@ object LVSTCPManager {
 
     private var fileOutputStream : BufferedOutputStream? = null
     private var retrievedContext: Context? = null
+
+    private var partialVideoDataArray: ByteArray? = null
 
     private val discoveryListener = object: NsdManager.DiscoveryListener {
         override fun onStartDiscoveryFailed(p0: String?, p1: Int) {
@@ -150,9 +154,10 @@ object LVSTCPManager {
     }
 
     fun sendEncodedData(dataType: LVSTCPDataType, byteBuffer: ByteBuffer) {
-        Log.i("OSMAN", "Data Type: $dataType ${byteBuffer.capacity()}")
+        Log.d("LVSRND", "Data Type: $dataType Data Length: ${byteBuffer.capacity()}")
+        val dataLength = byteBuffer.capacity()
         outputStream?.writeInt(dataType.value)
-        outputStream?.writeInt(byteBuffer.limit())
+        outputStream?.writeInt(dataLength)
         outputStream?.write(byteBuffer.array())
     }
 
@@ -194,11 +199,33 @@ object LVSTCPManager {
                             while (true) {
                                 val dataType = inputStream?.readInt() ?: continue
                                 val dataLength = inputStream?.readInt() ?: continue
+
                                 when (dataType) {
-                                    LVSTCPDataType.VideoData.value -> {
-                                        Log.i("LVSRND", "Received Video Data.")
+
+                                    LVSTCPDataType.VideoPartialData.value -> {
+                                        Log.i("LVSRND", "Received Partial Video Data. Length: $dataLength")
                                         val data = ByteArray(dataLength)
                                         inputStream?.readFully(data)
+
+                                        if (partialVideoDataArray == null) {
+                                            partialVideoDataArray = data
+                                        } else {
+
+                                            partialVideoDataArray?.let { pVideoData ->
+                                                val outputStream = ByteArrayOutputStream()
+                                                outputStream.write(pVideoData)
+                                                outputStream.write(data)
+
+                                                val mergedArray = outputStream.toByteArray()
+                                                partialVideoDataArray = mergedArray
+                                            }
+
+                                        }
+
+                                    }
+
+                                    LVSTCPDataType.VideoPartialDataTransmissionCompleted.value -> {
+                                        val data = partialVideoDataArray!!
 
                                         when {
                                             pps != null -> {
@@ -212,6 +239,8 @@ object LVSTCPManager {
                                                 delegate?.startedToHost(sps!!, pps!!)
                                             }
                                         }
+
+                                        partialVideoDataArray = null
                                     }
 
                                     LVSTCPDataType.RecordingData.value -> Log.i("LVSRND", "Received Recording Data.")
@@ -221,6 +250,7 @@ object LVSTCPManager {
                                         LVSConstants.bitRate = inputStream?.readInt() ?: continue
                                         Log.d("LVSRND", "Received Video Configuration Data; FPS: ${LVSConstants.fps} Bitrate: ${LVSConstants.bitRate}.")
                                     }
+
                                     LVSTCPDataType.RecordedVideoInProgress.value -> {
                                         Log.d("LVSRND", "Received Recorded Video Packet")
 
