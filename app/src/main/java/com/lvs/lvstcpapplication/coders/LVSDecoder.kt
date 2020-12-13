@@ -4,7 +4,7 @@ import android.media.MediaCodec
 import android.media.MediaFormat
 import android.util.Log
 import android.view.Surface
-import com.lvs.lvstcpapplication.LVSConstants
+import com.lvs.lvstcpapplication.helpers.LVSConstants
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicReference
 
@@ -52,7 +52,6 @@ object LVSDecoder {
             } else if (outputBufferIndex < 0) {
                 Log.i("LVSRND", "Unexpected Result From LVSDecoder: $outputBufferIndex")
             } else {
-                Log.i("LEYLA", "DECODED SUCCESSFULLY")
                 codec.releaseOutputBuffer(outputBufferIndex, true)
                 break
             }
@@ -65,29 +64,4 @@ object LVSDecoder {
         codec.reset()
         codec.release()
     }
-
-
-//    fun feedFrame(data: ByteArray) {
-//        val info = BufferInfo()
-//        val inputIndex = decoder.dequeueInputBuffer(1000)
-//        if (inputIndex == -1) return
-//        val inputBuffer: ByteBuffer = decoder.inputBuffers[inputIndex]
-//        if (inputIndex >= 0) {
-//            inputBuffer.clear()
-//            inputBuffer.put(data, 0, data.size)
-//            inputBuffer.clear()
-//            decoder.queueInputBuffer(inputIndex, 0, data.size, 0, 0)
-//        }
-//
-//        when (val outIndex = decoder.dequeueOutputBuffer(info, 1000)) {
-//            MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-//            }
-//            MediaCodec.INFO_TRY_AGAIN_LATER -> {
-//            }
-//            MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED -> {
-//            }
-//            else -> decoder.releaseOutputBuffer(outIndex, true)
-//        }
-//    }
-//
 }

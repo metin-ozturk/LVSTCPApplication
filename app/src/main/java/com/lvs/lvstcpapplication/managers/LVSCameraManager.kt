@@ -11,10 +11,9 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
-import com.lvs.lvstcpapplication.LVSConstants
-import com.lvs.lvstcpapplication.LVSTCPDataType
+import com.lvs.lvstcpapplication.helpers.LVSConstants
+import com.lvs.lvstcpapplication.helpers.LVSTCPDataType
 import kotlinx.coroutines.*
-import java.io.BufferedInputStream
 import java.io.DataInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -134,8 +133,6 @@ object LVSCameraManager {
         val videoFileBuffer = ByteArray(1024)
 
         val maxLoopCount = videoFile.length().toInt() / 1024
-        val lastLoopByteSize = videoFile.length().toInt() % 1024
-        val lastVideoBuffer = ByteArray(lastLoopByteSize)
         var loopCounter = 0
 
         while (loopCounter < maxLoopCount) {
@@ -144,8 +141,12 @@ object LVSCameraManager {
             loopCounter++
         }
 
-        inputStream.read(lastVideoBuffer)
-        LVSTCPManager.sendEncodedData(LVSTCPDataType.RecordedVideoInProgress, ByteBuffer.wrap(lastVideoBuffer))
+        val lastLoopByteSize = videoFile.length().toInt() % 1024
+        if (lastLoopByteSize > 0) {
+            val lastVideoBuffer = ByteArray(lastLoopByteSize)
+            inputStream.read(lastVideoBuffer)
+            LVSTCPManager.sendEncodedData(LVSTCPDataType.RecordedVideoInProgress, ByteBuffer.wrap(lastVideoBuffer))
+        }
 
         LVSTCPManager.sendEncodedData(LVSTCPDataType.RecordedVideoEnded, ByteBuffer.wrap(ByteArray(0)))
     }

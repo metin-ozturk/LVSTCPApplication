@@ -5,8 +5,8 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
 import androidx.core.content.ContextCompat.getSystemService
-import com.lvs.lvstcpapplication.LVSConstants
-import com.lvs.lvstcpapplication.LVSTCPDataType
+import com.lvs.lvstcpapplication.helpers.LVSConstants
+import com.lvs.lvstcpapplication.helpers.LVSTCPDataType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel

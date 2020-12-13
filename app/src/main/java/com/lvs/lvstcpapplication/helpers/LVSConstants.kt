@@ -1,4 +1,4 @@
-package com.lvs.lvstcpapplication
+package com.lvs.lvstcpapplication.helpers
 
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -40,12 +40,11 @@ object LVSConstants {
 }
 
 enum class LVSTCPDataType(val value: Int) {
-    VideoData(1),
-    VideoPartialData(2),
-    VideoPartialDataTransmissionCompleted(3),
-    RecordingData(4),
-    DrawingData(5),
-    VideoConfigurationData(6),
-    RecordedVideoInProgress(7),
-    RecordedVideoEnded(8)
+    VideoPartialData(1),
+    VideoPartialDataTransmissionCompleted(2),
+    RecordingData(3),
+    DrawingData(4),
+    VideoConfigurationData(5),
+    RecordedVideoInProgress(6),
+    RecordedVideoEnded(7)
 }

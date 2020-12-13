@@ -4,7 +4,7 @@ import android.media.MediaCodec
 import android.media.MediaFormat
 import android.util.Log
 import android.view.Surface
-import com.lvs.lvstcpapplication.LVSConstants
+import com.lvs.lvstcpapplication.helpers.LVSConstants
 import java.nio.ByteBuffer
 
 

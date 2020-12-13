@@ -2,7 +2,6 @@ package com.lvs.lvstcpapplication
 
 import android.Manifest
 import android.content.Context
-import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.wifi.WifiManager
@@ -18,6 +17,8 @@ import androidx.core.content.ContextCompat
 import com.lvs.lvstcpapplication.coders.LVSDecoder
 import com.lvs.lvstcpapplication.coders.LVSEncoder
 import com.lvs.lvstcpapplication.helpers.CameraView
+import com.lvs.lvstcpapplication.helpers.LVSConstants
+import com.lvs.lvstcpapplication.helpers.LVSTCPDataType
 import com.lvs.lvstcpapplication.managers.LVSCameraManager
 import com.lvs.lvstcpapplication.managers.LVSTCPManager
 import kotlinx.coroutines.*
@@ -80,8 +81,8 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
 
         val wifiManager = this.getSystemService(Context.WIFI_SERVICE) as WifiManager
         multicastLock = wifiManager.createMulticastLock("multicastLock")
-        multicastLock?.setReferenceCounted(true);
-        multicastLock?.acquire();
+        multicastLock?.setReferenceCounted(true)
+        multicastLock?.acquire()
 
         cameraView = findViewById(R.id.camera_view)
 
