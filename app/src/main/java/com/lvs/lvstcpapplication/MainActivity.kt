@@ -28,7 +28,6 @@ import java.util.concurrent.atomic.AtomicReference
 interface LVSCameraListener {
     fun onConnected()
     fun onDisconnected()
-    fun onReceiveFrame(bitmap: Bitmap?)
 }
 
 @ExperimentalCoroutinesApi
@@ -124,7 +123,6 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
 
     override fun connectedToHost() {
         isHost = false
-        initializeCameraView()
     }
 
     override fun startedToHost(sps: ByteArray, pps: ByteArray) {
@@ -139,7 +137,7 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
 
     // LVSEncoderDelegate Interface Methods
     override fun onDataAvailable(byteBuffer: ByteBuffer) {
-        if (isRecordingStopped) return
+        if (isRecordingStopped || isHost != false) return
         if (!isVideoConfigDataSent) {
             val byteBufferToBeSent = ByteBuffer.allocate(8)
             byteBufferToBeSent.putInt(LVSConstants.fps)
@@ -254,6 +252,7 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
                         1 -> (LVSConstants.width / 2) * (LVSConstants.height / 2) * 3
                         else -> (LVSConstants.width / 4) * (LVSConstants.height / 4)
                     }
+                    initializeCameraView()
                     LVSTCPManager.startTCPManager(this, false)
                     sDialog.dismiss()
                 }
