@@ -10,6 +10,7 @@ object LVSConstants {
     const val recordingBitRate = 1280 * 720 * 3
     const val width = 1280
     const val height = 720
+    const val tcpPacketSize = 1024
 
     val encodingVideoFormat: MediaFormat
         get() {

@@ -151,18 +151,18 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
         val byteArray = byteBuffer.array()
         val dataLength = byteArray.count()
 
-        val maxLoopCount = dataLength / 1024
+        val maxLoopCount = dataLength / LVSConstants.tcpPacketSize
         var loopCounter = 0
 
         while (loopCounter < maxLoopCount) {
-            val videoDataArray = byteArray.sliceArray((loopCounter * 1024) until (loopCounter * 1024 + 1024))
+            val videoDataArray = byteArray.sliceArray((loopCounter * LVSConstants.tcpPacketSize) until (loopCounter * LVSConstants.tcpPacketSize + LVSConstants.tcpPacketSize))
             LVSTCPManager.sendEncodedData(LVSTCPDataType.VideoPartialData, ByteBuffer.wrap(videoDataArray))
             loopCounter++
         }
 
-        val lastLoopByteSize = dataLength % 1024
+        val lastLoopByteSize = dataLength % LVSConstants.tcpPacketSize
         if (lastLoopByteSize > 0) {
-            val lastVideoArray = byteArray.sliceArray((loopCounter * 1024) until (loopCounter * 1024 + lastLoopByteSize))
+            val lastVideoArray = byteArray.sliceArray((loopCounter * LVSConstants.tcpPacketSize) until (loopCounter * LVSConstants.tcpPacketSize + lastLoopByteSize))
             LVSTCPManager.sendEncodedData(LVSTCPDataType.VideoPartialData, ByteBuffer.wrap(lastVideoArray))
         }
 

@@ -130,18 +130,18 @@ object LVSCameraManager {
 
     private fun sendRecordedVideo(videoFile: File) = runBlocking {
         val inputStream = DataInputStream(FileInputStream(videoFile))
-        val videoFileBuffer = ByteArray(1024)
+        val videoFileBuffer = ByteArray(LVSConstants.tcpPacketSize)
 
-        val maxLoopCount = videoFile.length().toInt() / 1024
+        val maxLoopCount = videoFile.length().toInt() / LVSConstants.tcpPacketSize
         var loopCounter = 0
 
         while (loopCounter < maxLoopCount) {
-            inputStream.read(videoFileBuffer, 0, 1024)
+            inputStream.read(videoFileBuffer, 0, LVSConstants.tcpPacketSize)
             LVSTCPManager.sendEncodedData(LVSTCPDataType.RecordedVideoInProgress, ByteBuffer.wrap(videoFileBuffer))
             loopCounter++
         }
 
-        val lastLoopByteSize = videoFile.length().toInt() % 1024
+        val lastLoopByteSize = videoFile.length().toInt() % LVSConstants.tcpPacketSize
         if (lastLoopByteSize > 0) {
             val lastVideoBuffer = ByteArray(lastLoopByteSize)
             inputStream.read(lastVideoBuffer)
