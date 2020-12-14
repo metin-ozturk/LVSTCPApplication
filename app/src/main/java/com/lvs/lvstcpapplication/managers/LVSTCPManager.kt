@@ -210,7 +210,6 @@ object LVSTCPManager {
                                         if (partialVideoDataArray == null) {
                                             partialVideoDataArray = data
                                         } else {
-
                                             partialVideoDataArray?.let { pVideoData ->
                                                 val outputStream = ByteArrayOutputStream()
                                                 outputStream.write(pVideoData)
@@ -225,7 +224,7 @@ object LVSTCPManager {
                                     }
 
                                     LVSTCPDataType.VideoPartialDataTransmissionCompleted.value -> {
-                                        val data = partialVideoDataArray!!
+                                        val data = partialVideoDataArray ?: return@let
 
                                         when {
                                             pps != null -> {
