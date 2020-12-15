@@ -194,89 +194,7 @@ object LVSTCPManager {
                         connectedClients.add(it)
 
                         inputStream = DataInputStream(it.getInputStream())
-
-                        try {
-                            while (true) {
-                                val dataType = inputStream?.readInt() ?: continue
-                                val dataLength = inputStream?.readInt() ?: continue
-
-                                when (dataType) {
-
-                                    LVSTCPDataType.VideoPartialData.value -> {
-                                        Log.i("LVSRND", "Received Partial Video Data. Length: $dataLength")
-                                        val data = ByteArray(dataLength)
-                                        inputStream?.readFully(data)
-
-                                        if (partialVideoDataArray == null) {
-                                            partialVideoDataArray = data
-                                        } else {
-                                            partialVideoDataArray?.let { pVideoData ->
-                                                val outputStream = ByteArrayOutputStream()
-                                                outputStream.write(pVideoData)
-                                                outputStream.write(data)
-
-                                                val mergedArray = outputStream.toByteArray()
-                                                partialVideoDataArray = mergedArray
-                                            }
-
-                                        }
-
-                                    }
-
-                                    LVSTCPDataType.VideoPartialDataTransmissionCompleted.value -> {
-                                        val data = partialVideoDataArray ?: return@let
-
-                                        when {
-                                            pps != null -> {
-                                                delegate?.retrievedData(data)
-                                            }
-                                            sps == null -> {
-                                                sps = data
-                                            }
-                                            pps == null -> {
-                                                pps = data
-                                                delegate?.startedToHost(sps!!, pps!!)
-                                            }
-                                        }
-
-                                        partialVideoDataArray = null
-                                    }
-
-                                    LVSTCPDataType.RecordingData.value -> Log.i("LVSRND", "Received Recording Data.")
-                                    LVSTCPDataType.DrawingData.value -> Log.i("LVSRND", "Received Drawing Data.")
-                                    LVSTCPDataType.VideoConfigurationData.value -> {
-                                        LVSConstants.fps = inputStream?.readInt() ?: continue
-                                        LVSConstants.bitRate = inputStream?.readInt() ?: continue
-                                        Log.d("LVSRND", "Received Video Configuration Data; FPS: ${LVSConstants.fps} Bitrate: ${LVSConstants.bitRate}.")
-                                    }
-
-                                    LVSTCPDataType.RecordedVideoInProgress.value -> {
-                                        Log.d("LVSRND", "Received Recorded Video Packet")
-
-                                        if (fileOutputStream == null) {
-                                            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
-                                            val retrievedFile = File(retrievedContext?.filesDir, "RETRIEVED_${sdf.format(Date())}.mp4")
-                                            fileOutputStream = BufferedOutputStream(FileOutputStream(retrievedFile))
-                                        }
-
-                                        val retrievedData = ByteArray(dataLength)
-                                        inputStream?.readFully(retrievedData)
-                                        fileOutputStream?.write(retrievedData)
-                                    }
-
-                                    LVSTCPDataType.RecordedVideoEnded.value -> {
-                                        Log.d("LVSRND", "Recorded Video Transmission Ended")
-                                        fileOutputStream?.close()
-                                    }
-                                    else -> Log.i("LVSRND", "Received unknown data type.")
-                                }
-
-
-
-                            }
-                        } catch (e: EOFException) {
-                            Log.i("LVSRND", "End of file reached.")
-                        }
+                        getInputStream()
 
                     }
                 } catch (e: SocketException) {
@@ -287,5 +205,91 @@ object LVSTCPManager {
                 }
             }
         }.start()
+    }
+
+    @Synchronized
+    private fun getInputStream() {
+        try {
+            while (true) {
+                val dataType = inputStream?.readInt() ?: continue
+                val dataLength = inputStream?.readInt() ?: continue
+
+                when (dataType) {
+
+                    LVSTCPDataType.VideoPartialData.value -> {
+                        Log.i("LVSRND", "Received Partial Video Data. Length: $dataLength")
+                        val data = ByteArray(dataLength)
+                        inputStream?.readFully(data)
+
+                        if (partialVideoDataArray == null) {
+                            partialVideoDataArray = data
+                        } else {
+                            partialVideoDataArray?.let { pVideoData ->
+                                val outputStream = ByteArrayOutputStream()
+                                outputStream.write(pVideoData)
+                                outputStream.write(data)
+
+                                val mergedArray = outputStream.toByteArray()
+                                partialVideoDataArray = mergedArray
+                            }
+
+                        }
+
+                    }
+
+                    LVSTCPDataType.VideoPartialDataTransmissionCompleted.value -> {
+                        val data = partialVideoDataArray ?: return
+
+                        when {
+                            pps != null -> {
+                                delegate?.retrievedData(data)
+                            }
+                            sps == null -> {
+                                sps = data
+                            }
+                            pps == null -> {
+                                pps = data
+                                delegate?.startedToHost(sps!!, pps!!)
+                            }
+                        }
+
+                        partialVideoDataArray = null
+                    }
+
+                    LVSTCPDataType.RecordingData.value -> Log.i("LVSRND", "Received Recording Data.")
+                    LVSTCPDataType.DrawingData.value -> Log.i("LVSRND", "Received Drawing Data.")
+                    LVSTCPDataType.VideoConfigurationData.value -> {
+                        LVSConstants.fps = inputStream?.readInt() ?: continue
+                        LVSConstants.bitRate = inputStream?.readInt() ?: continue
+                        Log.d("LVSRND", "Received Video Configuration Data; FPS: ${LVSConstants.fps} Bitrate: ${LVSConstants.bitRate}.")
+                    }
+
+                    LVSTCPDataType.RecordedVideoInProgress.value -> {
+                        Log.d("LVSRND", "Received Recorded Video Packet")
+
+                        if (fileOutputStream == null) {
+                            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
+                            val retrievedFile = File(retrievedContext?.filesDir, "RETRIEVED_${sdf.format(Date())}.mp4")
+                            fileOutputStream = BufferedOutputStream(FileOutputStream(retrievedFile))
+                        }
+
+                        val retrievedData = ByteArray(dataLength)
+                        inputStream?.readFully(retrievedData)
+                        fileOutputStream?.write(retrievedData)
+                    }
+
+                    LVSTCPDataType.RecordedVideoEnded.value -> {
+                        Log.d("LVSRND", "Recorded Video Transmission Ended")
+                        fileOutputStream?.close()
+                    }
+                    else -> Log.i("LVSRND", "Received unknown data type.")
+                }
+
+
+
+            }
+        } catch (e: EOFException) {
+            Log.i("LVSRND", "End of file reached.")
+        }
     }
 }
