@@ -10,7 +10,7 @@ object LVSConstants {
     const val recordingBitRate = 1280 * 720 * 3
     const val width = 1280
     const val height = 720
-    const val tcpPacketSize = 1024
+    const val tcpPacketSize = 4096
 
     val encodingVideoFormat: MediaFormat
         get() {
@@ -43,9 +43,7 @@ object LVSConstants {
 enum class LVSTCPDataType(val value: Int) {
     VideoPartialData(1),
     VideoPartialDataTransmissionCompleted(2),
-    RecordingData(3),
-    DrawingData(4),
-    VideoConfigurationData(5),
-    RecordedVideoInProgress(6),
-    RecordedVideoEnded(7)
+    VideoConfigurationData(3),
+    RecordedVideoInProgress(4),
+    RecordedVideoEnded(5)
 }

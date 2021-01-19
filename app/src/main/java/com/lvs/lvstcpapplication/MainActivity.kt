@@ -2,55 +2,64 @@ package com.lvs.lvstcpapplication
 
 import android.Manifest
 import android.content.Context
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.wifi.WifiManager
+import android.net.wifi.p2p.*
 import android.os.Bundle
 import android.util.Log
 import android.view.*
-import android.widget.Button
-import android.widget.LinearLayout
+import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.lvs.lvstcpapplication.broadcastReceivers.LVSWifiDirectBroadcastReceiver
 import com.lvs.lvstcpapplication.coders.LVSDecoder
 import com.lvs.lvstcpapplication.coders.LVSEncoder
 import com.lvs.lvstcpapplication.helpers.CameraView
 import com.lvs.lvstcpapplication.helpers.LVSConstants
 import com.lvs.lvstcpapplication.helpers.LVSTCPDataType
 import com.lvs.lvstcpapplication.managers.LVSCameraManager
+import com.lvs.lvstcpapplication.managers.LVSP2PManager
 import com.lvs.lvstcpapplication.managers.LVSTCPManager
 import kotlinx.coroutines.*
+import java.io.IOException
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.ServerSocket
+import java.net.Socket
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicReference
 
-interface LVSCameraListener {
-    fun onConnected()
-    fun onDisconnected()
-}
 
 @ExperimentalCoroutinesApi
 class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
     LVSEncoder.LVSEncoderDelegate, LVSCameraManager.LVSCameraManagerDelegate,
-    LVSCameraClient.OnCameraNetworkListener {
+    LVSP2PManager.LVSP2PManagerDelegate{
 
     private var cameraView : SurfaceView? = null
     private var isPreviewSurfaceCreated = false
 
-    private var isRecordingStopped = false
-    private var isBeingRecorded = false
     private var isVideoConfigDataSent = false
 
-    private var receiverButton : Button? = null
-    private var transmitterButton: Button? = null
-    private var recordButton: Button? = null
+    private var discoverPeersButton: Button? = null
+    private var socketConnectionButton: Button? = null
 
-    private var lvsCameraClient : LVSCameraClient? = null
-    private var lvsCameraListener: LVSCameraListener? = null
+    var encodingSurface: Surface? = null
     private var lvsCameraView: CameraView? = null
 
+    private var isConnectedThroughTCP = false
+    private var isTransactionOn = false
+
     private var isHost: Boolean? = null
+        set(value) {
+            Log.i("LVSRND", "IS HOST: $value")
+            field = value
+        }
+    private var isTransmitter : Boolean? = null
+
     private var multicastLock: WifiManager.MulticastLock? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,14 +74,25 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CHANGE_WIFI_MULTICAST_STATE), 43)
         }
 
-        recordButton = findViewById(R.id.record_button)
-        transmitterButton = findViewById(R.id.transmitter_button)
-        receiverButton = findViewById(R.id.receiver_button)
-        lvsCameraView = findViewById(R.id.lvs_camera_view)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 44)
+        }
 
-        setRecordButtonListener()
-        setTransmitterButtonListener()
-        setReceiverButtonListener()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_WIFI_STATE) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_WIFI_STATE), 45)
+        }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CHANGE_WIFI_STATE) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CHANGE_WIFI_STATE), 46)
+        }
+
+
+        lvsCameraView = findViewById(R.id.lvs_camera_view)
+        discoverPeersButton = findViewById(R.id.discover_peers_button)
+        socketConnectionButton = findViewById(R.id.socket_connection_button)
+
+        setDiscoverPeersButton()
+        setSocketConnectionButton()
 
         LVSTCPManager.delegate = this
         LVSEncoder.delegate = this
@@ -86,49 +106,59 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
         cameraView = findViewById(R.id.camera_view)
 
         cameraView?.holder?.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(p0: SurfaceHolder) { isPreviewSurfaceCreated = true }
+            override fun surfaceCreated(p0: SurfaceHolder) {
+                isPreviewSurfaceCreated = true
+            }
 
             override fun surfaceChanged(p0: SurfaceHolder, p1: Int, p2: Int, p3: Int) = Unit
 
             override fun surfaceDestroyed(p0: SurfaceHolder) = Unit
         })
 
+
+        LVSP2PManager.disconnectFromPeerDevice()
+
+        LVSP2PManager.initializeP2PConnection(this)
+
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        multicastLock?.release()
-
-        LVSEncoder.delegate = null
-        LVSTCPManager.delegate = null
-        LVSCameraManager.delegate = null
-
-        if (isHost == true) {
-            LVSTCPManager.stopTCPManager()
-            LVSDecoder.endDecoding()
-        } else if (isHost == false) {
-            LVSCameraManager.stopCameraManager()
-            LVSEncoder.stopEncoder()
-        }
-
-        cameraView!!.holder.surface.release()
+//        LVSP2PManager.deinitializeP2pConnection()
+//
+//        multicastLock?.release()
+//
+//        LVSEncoder.delegate = null
+//        LVSTCPManager.delegate = null
+//        LVSCameraManager.delegate = null
+//
+//        if (isHost == true) {
+//            LVSTCPManager.stopTCPManager()
+//            LVSDecoder.endDecoding()
+//        } else if (isHost == false) {
+//            LVSCameraManager.stopCameraManager()
+//            LVSEncoder.stopEncoder()
+//        }
+//
+//        cameraView!!.holder.surface.release()
     }
 
 
     private fun initializeCameraView() {
-        if (isPreviewSurfaceCreated) cameraView?.post { LVSCameraManager.initializeCameraManager(this, AtomicReference(cameraView!!.holder.surface)) }
+        if (isPreviewSurfaceCreated) cameraView?.post { LVSCameraManager.initializeCameraManager(this, cameraView!!.holder.surface, encodingSurface) }
     }
 
     // LVSTCPManager Interface Methods
 
-    override fun connectedToHost() {
-        isHost = false
+    override fun connectedToReceiver() {
+        encodingSurface?.let {
+            LVSEncoder.initializeAndStartEncoder(it)
+        }
     }
 
     override fun startedToHost(sps: ByteArray, pps: ByteArray) {
-        isHost = true
         cameraView = findViewById(R.id.camera_view)
-        LVSDecoder.initializeAndStartDecoder(AtomicReference(cameraView!!.holder.surface), sps, pps)
+        LVSDecoder.initializeAndStartDecoder(cameraView!!.holder.surface, sps, pps)
     }
 
     override fun retrievedData(byteArray: ByteArray) {
@@ -137,7 +167,7 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
 
     // LVSEncoderDelegate Interface Methods
     override fun onDataAvailable(byteBuffer: ByteBuffer) {
-        if (isRecordingStopped || isHost != false) return
+        if (!isConnectedThroughTCP) return
         if (!isVideoConfigDataSent) {
             val byteBufferToBeSent = ByteBuffer.allocate(8)
             byteBufferToBeSent.putInt(LVSConstants.fps)
@@ -169,122 +199,59 @@ class MainActivity : AppCompatActivity(), LVSTCPManager.LVSTCPManagerInterface,
     }
 
     // LVSCameraManager Interface Methods
-    override fun cameraInitialized(encodingSurface: AtomicReference<Surface>) {
-        LVSEncoder.initializeAndStartEncoder(encodingSurface.get())
-    }
-
-    // LVSCameraClient Interface Methods
-
-    override fun onConnect() {
-        Log.d("LVSCamera", "onConnect")
-        this.lvsCameraListener?.onConnected()
-    }
-
-    override fun onDisconnect() {
-        Log.d("LVSCamera", "onDisconnect")
-        this.lvsCameraListener?.onDisconnected()
-    }
-
-    override fun onGetData(data: ByteArray?, bmp: Bitmap?) {
-        //Log.d("LVSCamera", "Receive Frame")
-
-        bmp?.let {
-            runOnUiThread {
-                lvsCameraView?.displayFrame(it)
-            }
-        }
-
-    }
-
-    override fun onClose() {
-        Log.d("LVSCamera", "onClose")
-        this.lvsCameraListener?.onDisconnected()
-    }
-
-    override fun cantConnect() {
-        Log.d("LVSCamera", "cantConnect")
-    }
-
-    override fun cantReceiveImage() {
-        Log.d("LVSCamera", "cantReceiveImage")
-    }
-
-    override fun onCameraSelected() {
-        Log.d("LVSCamera", "onCameraSelected")
+    override fun cameraInitialized(encodingSurface: Surface) {
+        this.encodingSurface = encodingSurface
+        LVSEncoder.initializeAndStartEncoder(encodingSurface)
     }
 
 
-    private fun setRecordButtonListener() {
-        recordButton?.setOnClickListener {
-            if (!isBeingRecorded) {
-                recordButton?.text = "Stop Recording"
-                LVSCameraManager.startRecording()
+    private fun setDiscoverPeersButton() {
+        discoverPeersButton?.setOnClickListener {
+            if (LVSP2PManager.isConnectedToPeer) {
+                LVSTCPManager.stopTCPManager()
+                changeTransactionStatus()
+                LVSP2PManager.disconnectFromPeerDevice()
             } else {
-                isRecordingStopped = true
-                recordButton?.text = "Start Recording"
-                LVSCameraManager.stopRecording()
+                LVSP2PManager.discoverPeers()
             }
-            isBeingRecorded = !isBeingRecorded
         }
     }
 
-    private fun setTransmitterButtonListener() {
-        transmitterButton?.setOnClickListener {
-            transmitterButton?.visibility = View.GONE
-            receiverButton?.visibility = View.GONE
-            recordButton?.visibility = View.VISIBLE
-
-            val streamingFPSArray = arrayOf("15", "20", "30")
-            val streamingBitrateArray = arrayOf("High", "Mid", "Low")
-            val alertBuilder = AlertDialog.Builder(this)
-            alertBuilder.setTitle("Choose Streaming FPS:")
-            alertBuilder.setItems(streamingFPSArray) { dialog, which ->
-                LVSConstants.fps = when(which) {
-                    0 -> 15
-                    1 -> 20
-                    else -> 30
-                }
-
-                val bitrateAlertBuilder = AlertDialog.Builder(this)
-                bitrateAlertBuilder.setItems(streamingBitrateArray) { sDialog, sWhich ->
-                    LVSConstants.bitRate = when(sWhich) {
-                        0 -> LVSConstants.width * LVSConstants.height * 3
-                        1 -> (LVSConstants.width / 2) * (LVSConstants.height / 2) * 3
-                        else -> (LVSConstants.width / 4) * (LVSConstants.height / 4)
-                    }
-                    initializeCameraView()
-                    LVSTCPManager.startTCPManager(this, false)
-                    sDialog.dismiss()
-                }
-
-                bitrateAlertBuilder.create().show()
-                dialog.dismiss()
-            }
-
-            alertBuilder.create().show()
+    private fun setSocketConnectionButton() {
+        socketConnectionButton?.setOnClickListener {
+            changeTransactionStatus()
         }
     }
 
-    private fun setReceiverButtonListener() {
-        receiverButton?.setOnClickListener {
-            transmitterButton?.visibility = View.GONE
-            receiverButton?.visibility = View.GONE
+    private fun changeTransactionStatus() {
+        if (isTransactionOn) {
+            if (isTransmitter == true) {
+                LVSCameraManager.stopCameraManager()
+                isVideoConfigDataSent = false
+            } else if (isTransmitter == false) LVSDecoder.endDecoding()
+        } else if (isTransmitter == true) initializeCameraView()
 
-            lvsCameraClient = LVSCameraClient.connectToCamera(application.applicationContext)
-            lvsCameraClient?.setOnCameraNetworkListener(this)
-
-            val layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
-            layoutParams.height = (cameraView?.height ?: 0) / 2
-            layoutParams.width = ((9F / 16F) * layoutParams.height).toInt()
-            layoutParams.marginStart = (this.window.decorView.width - layoutParams.width) / 2
-            cameraView?.layoutParams = layoutParams
-
-            lvsCameraView?.visibility = View.VISIBLE
+        isTransactionOn = !isTransactionOn
+    }
 
 
-            lvsCameraClient?.startCapture()
+    override fun onConnectionStatusChanged(isConnected: Boolean) {
+        discoverPeersButton?.text =  if (isConnected) "Disconnect From Peer" else "Discover Peers"
 
-            LVSTCPManager.startTCPManager(this, true)
+        isConnectedThroughTCP = isConnected
+        isTransactionOn = isConnected
+
+    }
+
+    override fun isHost(isHost: Boolean, isTransmitter: Boolean) {
+        this.isHost = isHost
+        this.isTransmitter = isTransmitter
+
+        if (isTransmitter) initializeCameraView()
+
+        val bgScope = CoroutineScope(Dispatchers.IO)
+        bgScope.launch {
+            LVSTCPManager.startTCPManagerWithWifiDirect(this@MainActivity, LVSP2PManager.inetAddress)
         }
     }
 
