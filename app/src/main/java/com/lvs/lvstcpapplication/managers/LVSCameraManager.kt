@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
+import com.lvs.lvstcpapplication.coders.LVSEncoder
 import com.lvs.lvstcpapplication.helpers.LVSConstants
 import com.lvs.lvstcpapplication.helpers.LVSTCPDataType
 import kotlinx.coroutines.*
@@ -29,7 +30,7 @@ import kotlin.coroutines.suspendCoroutine
 @ExperimentalCoroutinesApi
 object LVSCameraManager {
     interface LVSCameraManagerDelegate {
-        fun cameraInitialized(encodingSurface: AtomicReference<Surface>)
+        fun cameraInitialized(encodingSurface: Surface)
     }
     var delegate: LVSCameraManagerDelegate? = null
 
@@ -48,53 +49,55 @@ object LVSCameraManager {
 
     private var mediaRecorder: MediaRecorder? = null
 
-    private val recordingSurface by lazy {
-        val surface = MediaCodec.createPersistentInputSurface()
-        mediaRecorder = createRecorder(surface).apply {
-            prepare()
-        }
-        surface
-    }
+    private lateinit var recordingSurface: Surface
+    private lateinit var encodingSurface: Surface
 
-    private val encodingSurface: Surface by lazy {
-        val surface = MediaCodec.createPersistentInputSurface()
-        createDummyRecorder(surface).apply {
+    private lateinit var previewRequest: CaptureRequest
+    private lateinit var encodingRequest: CaptureRequest
+
+    fun initializeCameraManager(context: Context, previewSurface: Surface, retrievedEncodingSurface: Surface? = null) = CoroutineScope(Dispatchers.Main).launch {
+        if (retrievedEncodingSurface == null) {
+            cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            getMaximumCameraFPS()?.let { LVSConstants.recordingFps = it }
+            camera = openCamera(cameraManager, cameraManager.cameraIdList.first(), cameraHandler)
+        }
+
+        createFile(context)
+
+        encodingSurface = MediaCodec.createPersistentInputSurface()
+        createDummyRecorder(encodingSurface).apply {
             prepare()
             release()
         }
-        surface
-    }
 
-    private val previewRequest: CaptureRequest by lazy {
-        // Capture request holds references to target surfaces
-        session.device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
+        recordingSurface = MediaCodec.createPersistentInputSurface()
+        mediaRecorder = createRecorder(recordingSurface).apply {
+            prepare()
+        }
+
+        LVSCameraManager.previewSurface = previewSurface
+
+        session = createCaptureSession(camera, listOf(LVSCameraManager.previewSurface, encodingSurface, recordingSurface), cameraHandler, context)
+
+        previewRequest = session.device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
             // Add the preview surface target
-            addTarget(previewSurface)
+            addTarget(LVSCameraManager.previewSurface)
         }.build()
-    }
 
-    private val encodingRequest: CaptureRequest by lazy {
-        session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
-            addTarget(previewSurface)
+        encodingRequest = session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
+            addTarget(LVSCameraManager.previewSurface)
             addTarget(encodingSurface)
             addTarget(recordingSurface)
         }.build()
-    }
-
-    fun initializeCameraManager(context: Context, previewSurface: AtomicReference<Surface>) = CoroutineScope(Dispatchers.Main).launch {
-        LVSCameraManager.previewSurface = previewSurface.get()
-
-        createFile(context)
-        cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        getMaximumCameraFPS()?.let { LVSConstants.recordingFps = it }
-        camera = openCamera(cameraManager, cameraManager.cameraIdList.first(), cameraHandler)
-
-        session = createCaptureSession(camera, listOf(LVSCameraManager.previewSurface, encodingSurface, recordingSurface), cameraHandler, context)
 
         session.setRepeatingRequest(previewRequest, null, cameraHandler)
         session.setRepeatingRequest(encodingRequest, null, cameraHandler)
 
-        delegate?.cameraInitialized(AtomicReference(encodingSurface))
+        delegate?.cameraInitialized(encodingSurface)
+
+        if (retrievedEncodingSurface != null) LVSEncoder.startEncoder(encodingSurface)
+//        if (retrievedEncodingSurface != null) LVSEncoder.startEncoder(LVSEncoder.encodingSurface!!)
+
     }
 
     fun startRecording() {
@@ -118,13 +121,14 @@ object LVSCameraManager {
     }
 
     fun stopCameraManager() {
+        LVSEncoder.stopEncoder()
+
+        session.abortCaptures()
         session.stopRepeating()
         session.close()
         recordingSurface.release()
         encodingSurface.release()
-        previewSurface.release()
-        cameraHandler.removeCallbacksAndMessages(null)
-        cameraThread.interrupt()
+//        previewSurface.release()
         dummyFile?.delete()
     }
 
