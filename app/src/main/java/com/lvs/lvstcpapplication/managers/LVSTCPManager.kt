@@ -49,14 +49,15 @@ object LVSTCPManager {
         retrievedContext = context
 
         if (isHost) {
-            this.serverSocket = ServerSocket(1789)
+            this.serverSocket = ServerSocket(1789).apply {
+                soTimeout = 0
+            }
             listenForConnections()
             outputStream = connectedClients.firstOrNull()?.let { DataOutputStream(it.getOutputStream()) }
 
         } else {
             while (true) {
                 val result = connectToHost(inetAddress)
-                Log.i("OSMAN", "RESULT: $result")
                 if (result) break
             }
 
@@ -66,7 +67,10 @@ object LVSTCPManager {
 
     private fun connectToHost(inetAddress: InetAddress?): Boolean {
         return try {
-            this.clientSocket = Socket(inetAddress, 1789)
+            this.clientSocket = Socket(inetAddress, 1789).apply {
+                soTimeout = 0
+            }
+
             listenForConnections(false)
             outputStream = clientSocket?.let { DataOutputStream(it.getOutputStream()) }
             Log.i("LVSRND", "Connected to Host")
@@ -91,20 +95,22 @@ object LVSTCPManager {
         serverSocket = null
         clientSocket = null
 
+        isHost = false
+
 //        if (isHost) discoveryManager?.unregisterService(registrationListener)
 //        if (isHost) discoveryManager?.unregisterService(registrationListener) else discoveryManager?.stopServiceDiscovery(discoveryListener)
     }
 
     fun sendEncodedData(dataType: LVSTCPDataType, byteBuffer: ByteBuffer) = runBlocking(Dispatchers.IO) {
         Log.d("LVSRND", "Data Type: $dataType Data Length: ${byteBuffer.capacity()}")
+        val mergedByteBuffer = ByteBuffer.allocate(8 + byteBuffer.capacity())
         val dataLength = byteBuffer.capacity()
 
-        (0..2).forEach { _ ->
-            outputStream?.writeInt(dataType.value)
-            outputStream?.writeInt(dataLength)
-        }
+        mergedByteBuffer.putInt(dataType.value)
+        mergedByteBuffer.putInt(dataLength)
+        mergedByteBuffer.put(byteBuffer)
 
-        outputStream?.write(byteBuffer.array())
+        outputStream?.write(mergedByteBuffer.array())
     }
 
 
@@ -125,7 +131,6 @@ object LVSTCPManager {
                             if (LVSP2PManager.isTransmitter) {
                                 val mainScope = CoroutineScope(Dispatchers.Main)
                                 mainScope.launch {
-                                    Log.i("OSMAN", "CONNECTED TO HOST")
                                     delegate?.connectedToReceiver()
                                     mainScope.cancel()
                                 }
@@ -145,9 +150,7 @@ object LVSTCPManager {
                     if (clientSocket?.isClosed == true) continue
 
                     inputStream = clientSocket?.let { DataInputStream(it.getInputStream()) }
-                    Thread {
-                        getInputStream()
-                    }.start()
+                    getInputStream()
                     break
                 }
             }
@@ -160,32 +163,10 @@ object LVSTCPManager {
     private fun getInputStream() {
         try {
             while (true) {
-                val dataTypeArrayList = arrayListOf<Int>()
-                val dataLengthArrayList = arrayListOf<Int>()
+                val dataType = inputStream?.readInt() ?: -1
+                val dataLength = inputStream?.readInt() ?: -1
 
-                var dataType : Int = -1
-                var dataLength: Int = -1
-
-                (0..2).forEach { _ ->
-                    val retrievedDataType = inputStream?.readInt() ?: -2
-                    val retrievedDataLength = inputStream?.readInt() ?: -2
-
-                    if ((dataTypeArrayList.count() == 1 && retrievedDataType == dataTypeArrayList.first())
-                        || (dataTypeArrayList.count() == 2  && (retrievedDataType == dataTypeArrayList.first() || retrievedDataType == dataTypeArrayList[1]))) {
-                        dataType = retrievedDataType
-                    }
-
-                    if ((dataLengthArrayList.count() == 1 && retrievedDataLength == dataLengthArrayList.first())
-                        || (dataLengthArrayList.count() == 2  && (retrievedDataLength == dataLengthArrayList.first() || retrievedDataLength == dataLengthArrayList[1]))){
-                        dataLength = retrievedDataLength
-                    }
-
-                    dataTypeArrayList.add(retrievedDataType)
-                    dataLengthArrayList.add(retrievedDataLength)
-                }
-
-
-                if ( dataType !in (1..5) || dataLength !in (0..4096)) {
+                if (dataType !in (1..5) || dataLength !in (0..LVSConstants.tcpPacketSize)) {
                     Log.e("LVSRND", "ERROR IN RETRIEVED DATA $dataType $dataLength")
                     continue
                 }

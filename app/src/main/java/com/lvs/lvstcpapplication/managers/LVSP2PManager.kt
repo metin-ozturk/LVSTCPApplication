@@ -69,7 +69,7 @@ object LVSP2PManager {
 
                 retrievedActivity?.let {
                     alertDialog = AlertDialog.Builder(it)
-                            .setTitle("Select A Device To Connect and Steam to it?")
+                            .setTitle("Select A Device To Connect and Stream to it?")
                             .setItems(deviceNames.toTypedArray()) { dialog, which ->
                                 isTransmitter = true
                                 selectedDeviceIdx = which
@@ -78,7 +78,6 @@ object LVSP2PManager {
 
                             }
                             .setNegativeButton("Cancel") { dialog, _ ->
-                                isTransmitter = false
                                 dialog.dismiss()
                             }
                             .setOnDismissListener {
@@ -163,22 +162,25 @@ object LVSP2PManager {
     }
 
     fun disconnectFromPeerDevice() {
-        isConnectedToPeer = false
-        inetAddress = null
+        if (isConnectedToPeer) {
+            isConnectedToPeer = false
+            inetAddress = null
 
-        p2pManager?.requestGroupInfo(channel) { group ->
-            if (group != null) {
-                p2pManager?.removeGroup(channel, object : WifiP2pManager.ActionListener {
-                    override fun onSuccess() {
-                        Log.d("LVSRND", "removeGroup onSuccess")
-                    }
+            p2pManager?.requestGroupInfo(channel) { group ->
+                if (group != null) {
+                    p2pManager?.removeGroup(channel, object : WifiP2pManager.ActionListener {
+                        override fun onSuccess() {
+                            Log.d("LVSRND", "removeGroup onSuccess")
+                        }
 
-                    override fun onFailure(reason: Int) {
-                        Log.d("LVSRND", "removeGroup onFailure - $reason")
-                    }
-                })
+                        override fun onFailure(reason: Int) {
+                            Log.d("LVSRND", "removeGroup onFailure - $reason")
+                        }
+                    })
+                }
             }
         }
+
     }
 
 }
