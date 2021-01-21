@@ -49,12 +49,7 @@ object LVSTCPManager {
         retrievedContext = context
 
         if (isHost) {
-            this.serverSocket = ServerSocket(1789).apply {
-                soTimeout = 0
-            }
-            listenForConnections()
-            outputStream = connectedClients.firstOrNull()?.let { DataOutputStream(it.getOutputStream()) }
-
+            beHost()
         } else {
             while (true) {
                 val result = connectToHost(inetAddress)
@@ -65,9 +60,26 @@ object LVSTCPManager {
 
     }
 
+    private fun beHost() {
+        try {
+            this.serverSocket = ServerSocket().apply {
+                reuseAddress = true
+                soTimeout = 0
+                bind(InetSocketAddress(1789))
+            }
+            listenForConnections()
+            outputStream = connectedClients.firstOrNull()?.let { DataOutputStream(it.getOutputStream()) }
+        } catch (exc: BindException) {
+            Log.w("LVSRND", "Bind Exception While Trying to be a host! ${exc.localizedMessage}")
+            beHost()
+        }
+
+    }
+
     private fun connectToHost(inetAddress: InetAddress?): Boolean {
         return try {
             this.clientSocket = Socket(inetAddress, 1789).apply {
+                reuseAddress = true
                 soTimeout = 0
             }
 
@@ -83,6 +95,7 @@ object LVSTCPManager {
 
 
     fun stopTCPManager() {
+        Log.w("OSMAN", "stopTCPManagerCalled")
         listeningForConnectionsThread?.interrupt()
 
         inputStream?.close()
@@ -97,37 +110,54 @@ object LVSTCPManager {
 
         isHost = false
 
+        connectedClients = arrayListOf()
+        sps = null
+        pps = null
+        partialVideoDataArray = null
 //        if (isHost) discoveryManager?.unregisterService(registrationListener)
 //        if (isHost) discoveryManager?.unregisterService(registrationListener) else discoveryManager?.stopServiceDiscovery(discoveryListener)
     }
 
-    fun sendEncodedData(dataType: LVSTCPDataType, byteBuffer: ByteBuffer) = runBlocking(Dispatchers.IO) {
+    fun sendEncodedData(dataType: LVSTCPDataType, byteBuffer: ByteBuffer) {
         Log.d("LVSRND", "Data Type: $dataType Data Length: ${byteBuffer.capacity()}")
-        val mergedByteBuffer = ByteBuffer.allocate(8 + byteBuffer.capacity())
         val dataLength = byteBuffer.capacity()
+        val mergedByteBuffer = ByteBuffer.allocate(8 + dataLength)
 
         mergedByteBuffer.putInt(dataType.value)
         mergedByteBuffer.putInt(dataLength)
         mergedByteBuffer.put(byteBuffer)
 
-        outputStream?.write(mergedByteBuffer.array())
+        try {
+            outputStream?.write(mergedByteBuffer.array())
+        } catch (exc: SocketException) {
+            Log.d("LVSRND", "Socket is closed while attempting to send encoded data: ${exc.localizedMessage}")
+        }
     }
 
 
     @Synchronized
     private fun listenForConnections(isHost: Boolean = true) {
+        Log.i("OSMAN", "LISTENING FOR CONNECTIONS")
         listeningForConnectionsThread = Thread {
+            Log.i("OSMAN", "0")
             if (isHost) {
+                Log.i("OSMAN", "1")
                 while (serverSocket != null) {
+                    Log.i("OSMAN", "2")
                     if (serverSocket?.isClosed == true) continue
+                    if (listeningForConnectionsThread?.isInterrupted == true) return@Thread
                     try {
+                        Log.i("OSMAN", "3")
+                        Log.i("OSMAN", "Server Socket: $serverSocket")
                         serverSocket?.accept()?.let { sSocket ->
                             Log.i("LVSRND", "Accepted client $sSocket")
+                            Log.i("OSMAN", "4")
                             connectedClients.add(sSocket)
-
+                            Log.i("OSMAN", "5")
                             inputStream = connectedClients.firstOrNull()?.let { DataInputStream(it.getInputStream()) }
+                            Log.i("OSMAN", "6")
                             getInputStream()
-
+                            Log.i("OSMAN", "7")
                             if (LVSP2PManager.isTransmitter) {
                                 val mainScope = CoroutineScope(Dispatchers.Main)
                                 mainScope.launch {
@@ -135,14 +165,17 @@ object LVSTCPManager {
                                     mainScope.cancel()
                                 }
                             }
+
                         }
+
                     } catch (e: SocketException) {
                         Log.e(
                                 "LVSRND",
                                 "Socket Error while listening for connections: ${e.localizedMessage}"
                         )
+                        listeningForConnectionsThread?.interrupt()
                     } catch (e: Exception) {
-                        Log.e("LVSRND", "Error while listening for connections: ${e.localizedMessage}")
+                        Log.e("LVSRND", "Error while listening for connections: $e ${e.message} ${e.localizedMessage}")
                     }
                 }
             } else {
@@ -163,6 +196,7 @@ object LVSTCPManager {
     private fun getInputStream() {
         try {
             while (true) {
+                Log.i("OSMAN", "input Stream 0")
                 val dataType = inputStream?.readInt() ?: -1
                 val dataLength = inputStream?.readInt() ?: -1
 
@@ -170,6 +204,8 @@ object LVSTCPManager {
                     Log.e("LVSRND", "ERROR IN RETRIEVED DATA $dataType $dataLength")
                     continue
                 }
+
+                Log.i("OSMAN", "input Stream 1")
 
                 when (dataType) {
                     LVSTCPDataType.VideoPartialData.value -> {

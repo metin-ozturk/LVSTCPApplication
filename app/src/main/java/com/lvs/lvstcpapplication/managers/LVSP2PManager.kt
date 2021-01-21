@@ -161,10 +161,11 @@ object LVSP2PManager {
 
     }
 
-    fun disconnectFromPeerDevice() {
-        if (isConnectedToPeer) {
+    fun disconnectFromPeerDevice(atStart: Boolean = false) {
+        if (isConnectedToPeer || atStart) {
             isConnectedToPeer = false
             inetAddress = null
+            isTransmitter = false
 
             p2pManager?.requestGroupInfo(channel) { group ->
                 if (group != null) {
