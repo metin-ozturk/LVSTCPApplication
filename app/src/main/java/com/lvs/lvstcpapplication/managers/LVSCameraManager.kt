@@ -64,6 +64,9 @@ object LVSCameraManager {
 
         createFile(context)
 
+        Log.d("OSMAN", "Initialize Camera Manager Called: $retrievedEncodingSurface")
+//        if (LVSConstants.bitRate == 0) LVSConstants.bitRate = 1280 * 720 * 3
+//        LVSConstants.fps = 30
         encodingSurface = MediaCodec.createPersistentInputSurface()
         createDummyRecorder(encodingSurface).apply {
             prepare()
@@ -121,6 +124,7 @@ object LVSCameraManager {
     }
 
     fun stopCameraManager() {
+        Log.i("OSMAN", "STOP MANAGER CALLED")
         LVSEncoder.stopEncoder()
 
         session.abortCaptures()

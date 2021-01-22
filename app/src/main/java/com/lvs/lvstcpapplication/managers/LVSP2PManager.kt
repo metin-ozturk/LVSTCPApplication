@@ -19,7 +19,6 @@ object LVSP2PManager {
 
     interface LVSP2PManagerDelegate {
         fun onConnectionStatusChanged(isConnected: Boolean)
-        fun isHost(isHost: Boolean, isTransmitter: Boolean)
     }
 
     var delegate: LVSP2PManagerDelegate? = null
@@ -33,7 +32,8 @@ object LVSP2PManager {
     private var devices = arrayListOf<WifiP2pDevice>()
     private var selectedDeviceIdx = -1
 
-    var isTransmitter: Boolean = false
+    var isTransmitter: Boolean? = null
+    var isHost: Boolean? = null
 
     var isConnectedToPeer = false
         private set(value) {
@@ -93,8 +93,8 @@ object LVSP2PManager {
         WifiP2pManager.ConnectionInfoListener {
             val isGroupOwner = it.groupFormed && it.isGroupOwner
             inetAddress = if (!isGroupOwner) it.groupOwnerAddress else null
-
-            delegate?.isHost(isGroupOwner, isTransmitter)
+            if (isTransmitter == null) isTransmitter = false
+            isHost = isGroupOwner
             isConnectedToPeer = true
             delegate?.onConnectionStatusChanged(true)
         }

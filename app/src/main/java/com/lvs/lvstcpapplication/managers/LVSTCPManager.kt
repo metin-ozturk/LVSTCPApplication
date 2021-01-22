@@ -21,6 +21,7 @@ object LVSTCPManager {
         fun connectedToReceiver()
         fun startedToHost(sps: ByteArray, pps: ByteArray)
         fun retrievedData(byteArray: ByteArray)
+        fun streamStatusChanged(isTransactionOn: Boolean): Job
     }
 
     var delegate: LVSTCPManagerInterface? = null
@@ -34,8 +35,6 @@ object LVSTCPManager {
 
     private var serverSocket: ServerSocket? = null
     private var clientSocket: Socket? = null
-
-    private var connectedClients: MutableList<Socket> = CopyOnWriteArrayList()
 
     private var isHost = false
 
@@ -68,7 +67,7 @@ object LVSTCPManager {
                 bind(InetSocketAddress(1789))
             }
             listenForConnections()
-            outputStream = connectedClients.firstOrNull()?.let { DataOutputStream(it.getOutputStream()) }
+            Log.i("LVSRND", "Being Host")
         } catch (exc: BindException) {
             Log.w("LVSRND", "Bind Exception While Trying to be a host! ${exc.localizedMessage}")
             beHost()
@@ -83,8 +82,11 @@ object LVSTCPManager {
                 soTimeout = 0
             }
 
-            listenForConnections(false)
+            inputStream = clientSocket?.let { DataInputStream(it.getInputStream()) }
             outputStream = clientSocket?.let { DataOutputStream(it.getOutputStream()) }
+
+            listenForConnections(false)
+
             Log.i("LVSRND", "Connected to Host")
             true
         } catch (exc: ConnectException) {
@@ -110,7 +112,6 @@ object LVSTCPManager {
 
         isHost = false
 
-        connectedClients = arrayListOf()
         sps = null
         pps = null
         partialVideoDataArray = null
@@ -137,28 +138,21 @@ object LVSTCPManager {
 
     @Synchronized
     private fun listenForConnections(isHost: Boolean = true) {
-        Log.i("OSMAN", "LISTENING FOR CONNECTIONS")
+        Log.d("LVSRND", "LISTENING FOR CONNECTIONS")
         listeningForConnectionsThread = Thread {
-            Log.i("OSMAN", "0")
             if (isHost) {
-                Log.i("OSMAN", "1")
                 while (serverSocket != null) {
-                    Log.i("OSMAN", "2")
                     if (serverSocket?.isClosed == true) continue
                     if (listeningForConnectionsThread?.isInterrupted == true) return@Thread
                     try {
-                        Log.i("OSMAN", "3")
-                        Log.i("OSMAN", "Server Socket: $serverSocket")
                         serverSocket?.accept()?.let { sSocket ->
                             Log.i("LVSRND", "Accepted client $sSocket")
-                            Log.i("OSMAN", "4")
-                            connectedClients.add(sSocket)
-                            Log.i("OSMAN", "5")
-                            inputStream = connectedClients.firstOrNull()?.let { DataInputStream(it.getInputStream()) }
-                            Log.i("OSMAN", "6")
+
+                            inputStream =  DataInputStream(sSocket.getInputStream())
+                            outputStream = DataOutputStream(sSocket.getOutputStream())
                             getInputStream()
-                            Log.i("OSMAN", "7")
-                            if (LVSP2PManager.isTransmitter) {
+
+                            if (LVSP2PManager.isTransmitter == true) {
                                 val mainScope = CoroutineScope(Dispatchers.Main)
                                 mainScope.launch {
                                     delegate?.connectedToReceiver()
@@ -171,18 +165,15 @@ object LVSTCPManager {
                     } catch (e: SocketException) {
                         Log.e(
                                 "LVSRND",
-                                "Socket Error while listening for connections: ${e.localizedMessage}"
+                                "Socket Error while listening for connections: ${e.localizedMessage} ${e}"
                         )
                         listeningForConnectionsThread?.interrupt()
-                    } catch (e: Exception) {
-                        Log.e("LVSRND", "Error while listening for connections: $e ${e.message} ${e.localizedMessage}")
                     }
                 }
             } else {
                 while (clientSocket != null) {
                     if (clientSocket?.isClosed == true) continue
 
-                    inputStream = clientSocket?.let { DataInputStream(it.getInputStream()) }
                     getInputStream()
                     break
                 }
@@ -196,16 +187,13 @@ object LVSTCPManager {
     private fun getInputStream() {
         try {
             while (true) {
-                Log.i("OSMAN", "input Stream 0")
                 val dataType = inputStream?.readInt() ?: -1
                 val dataLength = inputStream?.readInt() ?: -1
 
-                if (dataType !in (1..5) || dataLength !in (0..LVSConstants.tcpPacketSize)) {
+                if (dataType !in (1..6) || dataLength !in (0..LVSConstants.tcpPacketSize)) {
                     Log.e("LVSRND", "ERROR IN RETRIEVED DATA $dataType $dataLength")
                     continue
                 }
-
-                Log.i("OSMAN", "input Stream 1")
 
                 when (dataType) {
                     LVSTCPDataType.VideoPartialData.value -> {
@@ -230,7 +218,7 @@ object LVSTCPManager {
                     }
 
                     LVSTCPDataType.VideoPartialDataTransmissionCompleted.value -> {
-                        Log.i("LVSRND", "Video Data Transmission Completed. Length: $dataLength")
+                        Log.i("LVSRND", "Retrieval Video Data Completed.")
 
                         val data = partialVideoDataArray ?: return
 
@@ -249,11 +237,19 @@ object LVSTCPManager {
 
                         partialVideoDataArray = null
                     }
+
                     LVSTCPDataType.VideoConfigurationData.value -> {
-                        LVSConstants.fps = inputStream?.readInt() ?: continue
-                        LVSConstants.bitRate = inputStream?.readInt() ?: continue
+                        LVSConstants.fps = inputStream?.readInt() ?: -1
+                        LVSConstants.bitRate = inputStream?.readInt() ?: -1
                         Log.d("LVSRND", "Received Video Configuration Data; FPS: ${LVSConstants.fps} Bitrate: ${LVSConstants.bitRate}.")
                     }
+
+                    LVSTCPDataType.StreamStatus.value -> {
+                        val streamStatus = inputStream?.readInt() ?: continue
+                        Log.i("LVSRND", "Retrieved Stream Status $streamStatus")
+                        delegate?.streamStatusChanged(streamStatus == 1)
+                    }
+
                     else -> Log.i("LVSRND", "Received unknown data type. Type: $dataType Length: $dataLength")
                 }
 
