@@ -6,6 +6,7 @@ import android.hardware.camera2.*
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
 import android.media.MediaCodec
+import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Handler
 import android.os.HandlerThread
@@ -54,6 +55,9 @@ object LVSCameraManager {
 
     private lateinit var previewRequest: CaptureRequest
     private lateinit var encodingRequest: CaptureRequest
+
+    private var isRecording = false
+    var recordedVideoFileLength: Int? = null
 
     fun initializeCameraManager(context: Context, previewSurface: Surface, retrievedEncodingSurface: Surface? = null) = CoroutineScope(Dispatchers.Main).launch {
         if (retrievedEncodingSurface == null) {
@@ -104,27 +108,50 @@ object LVSCameraManager {
     }
 
     fun startRecording() {
-        mediaRecorder?.start()
+        if (!isRecording) {
+            isRecording = true
+            mediaRecorder?.start()
+        }
     }
 
     fun stopRecording() {
-        mediaRecorder?.pause()
-        mediaRecorder?.stop()
-        mediaRecorder?.release()
+        if (isRecording) {
+            isRecording = false
 
-        stopCameraManager()
+            mediaRecorder?.pause()
+            mediaRecorder?.stop()
+            mediaRecorder?.release()
 
-        recordingFile?.let {
-            val bgScope = CoroutineScope(Dispatchers.IO)
-            bgScope.launch {
-                sendRecordedVideo(it)
-                bgScope.cancel()
+            stopCameraManager()
+
+            recordingFile?.let {
+                val bgScope = CoroutineScope(Dispatchers.IO)
+                bgScope.launch {
+                    sendRecordedVideo(it)
+                    bgScope.cancel()
+                }
             }
+        } else {
+            stopCameraManager()
+        }
+    }
+
+    fun cancelRecording(context: Context, previewSurface: Surface) {
+        if (isRecording) {
+            isRecording = false
+
+            mediaRecorder?.pause()
+            mediaRecorder?.stop()
+            mediaRecorder?.release()
+
+            stopCameraManager()
+            recordingFile?.delete()
+
+            initializeCameraManager(context, previewSurface, encodingSurface)
         }
     }
 
     fun stopCameraManager() {
-        Log.i("OSMAN", "STOP MANAGER CALLED")
         LVSEncoder.stopEncoder()
 
         session.abortCaptures()
@@ -136,15 +163,19 @@ object LVSCameraManager {
         dummyFile?.delete()
     }
 
-    private fun sendRecordedVideo(videoFile: File) = runBlocking {
+    private fun sendRecordedVideo(videoFile: File) {
         val inputStream = DataInputStream(FileInputStream(videoFile))
         val videoFileBuffer = ByteArray(LVSConstants.tcpPacketSize)
 
         val maxLoopCount = videoFile.length().toInt() / LVSConstants.tcpPacketSize
         var loopCounter = 0
+        recordedVideoFileLength = videoFile.length().toInt()
+        var currentTransmittedBytes = 0
 
         while (loopCounter < maxLoopCount) {
-            inputStream.read(videoFileBuffer, 0, LVSConstants.tcpPacketSize)
+            inputStream.readFully(videoFileBuffer, 0, LVSConstants.tcpPacketSize)
+            currentTransmittedBytes += LVSConstants.tcpPacketSize
+//            broadcastingDelegate?.transmittedDataLengthChanged(((currentTransmittedBytes.toFloat() / (recordedVideoFileLength ?: 1F).toFloat()) * 100).toInt())
             LVSTCPManager.sendEncodedData(LVSTCPDataType.RecordedVideoInProgress, ByteBuffer.wrap(videoFileBuffer))
             loopCounter++
         }
@@ -152,7 +183,9 @@ object LVSCameraManager {
         val lastLoopByteSize = videoFile.length().toInt() % LVSConstants.tcpPacketSize
         if (lastLoopByteSize > 0) {
             val lastVideoBuffer = ByteArray(lastLoopByteSize)
-            inputStream.read(lastVideoBuffer)
+            inputStream.readFully(lastVideoBuffer, 0, lastLoopByteSize)
+            currentTransmittedBytes += lastLoopByteSize
+//            broadcastingDelegate?.transmittedDataLengthChanged(((currentTransmittedBytes.toFloat() / (recordedVideoFileLength ?: 1F).toFloat()) * 100).toInt())
             LVSTCPManager.sendEncodedData(LVSTCPDataType.RecordedVideoInProgress, ByteBuffer.wrap(lastVideoBuffer))
         }
 

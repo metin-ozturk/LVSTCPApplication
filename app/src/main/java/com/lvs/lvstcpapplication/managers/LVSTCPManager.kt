@@ -22,6 +22,7 @@ object LVSTCPManager {
         fun startedToHost(sps: ByteArray, pps: ByteArray)
         fun retrievedData(byteArray: ByteArray)
         fun streamStatusChanged(isTransactionOn: Boolean): Job
+        fun recordedVideoTransmissionFinalized(file: File)
     }
 
     var delegate: LVSTCPManagerInterface? = null
@@ -42,6 +43,9 @@ object LVSTCPManager {
 
     private var partialVideoDataArray: ByteArray? = null
     private var listeningForConnectionsThread: Thread? = null
+
+    private var fileOutputStream : BufferedOutputStream? = null
+    private var recordedFile: File? = null
 
     fun startTCPManagerWithWifiDirect(context: Context, inetAddress: InetAddress?) {
         isHost = inetAddress == null
@@ -190,7 +194,7 @@ object LVSTCPManager {
                 val dataType = inputStream?.readInt() ?: -1
                 val dataLength = inputStream?.readInt() ?: -1
 
-                if (dataType !in (1..6) || dataLength !in (0..LVSConstants.tcpPacketSize)) {
+                if (dataType !in (1..9) || dataLength !in (0..LVSConstants.tcpPacketSize)) {
                     Log.e("LVSRND", "ERROR IN RETRIEVED DATA $dataType $dataLength")
                     continue
                 }
@@ -243,6 +247,31 @@ object LVSTCPManager {
                         LVSConstants.bitRate = inputStream?.readInt() ?: -1
                         Log.d("LVSRND", "Received Video Configuration Data; FPS: ${LVSConstants.fps} Bitrate: ${LVSConstants.bitRate}.")
                     }
+
+                    LVSTCPDataType.RecordedVideoInProgress.value -> {
+                        Log.d("LVSRND", "Received Recorded Video Packet")
+
+                        if (fileOutputStream == null) {
+                            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
+                            val mediaFolder = File(retrievedContext?.filesDir, "lvsync")
+                            if (!mediaFolder.exists()) mediaFolder.mkdirs()
+                            val retrievedFile = File(mediaFolder, "RETRIEVED_${sdf.format(Date())}.mp4")
+                            recordedFile = retrievedFile
+                            fileOutputStream = BufferedOutputStream(FileOutputStream(retrievedFile))
+                        }
+                        val retrievedData = ByteArray(dataLength)
+                        inputStream?.readFully(retrievedData, 0, dataLength)
+                        fileOutputStream?.write(retrievedData)
+                    }
+
+                    LVSTCPDataType.RecordedVideoEnded.value -> {
+                        Log.d("LVSRND", "Recorded Video Transmission Ended")
+                        fileOutputStream?.close()
+                        fileOutputStream = null
+                        recordedFile?.let { delegate?.recordedVideoTransmissionFinalized(it) }
+
+                    }
+
 
                     LVSTCPDataType.StreamStatus.value -> {
                         val streamStatus = inputStream?.readInt() ?: continue
