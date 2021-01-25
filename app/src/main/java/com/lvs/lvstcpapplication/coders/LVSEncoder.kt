@@ -16,34 +16,61 @@ object LVSEncoder: MediaCodec.Callback() {
 
     var delegate: LVSEncoderDelegate? = null
 
-    private val encoder: MediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+    private var encoder: MediaCodec? = null
     private var encodingConfigSent = false
+    private var encodingThread : Thread? = null
 
-    init {
-        encoder.setCallback(this)
-    }
+    private var isEncoderRunning = false
 
     fun initializeAndStartEncoder(encodingSurface: Surface) {
+        isEncoderRunning = true
+
         while (true) {
             try {
+                encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+                encoder?.configure(LVSConstants.encodingVideoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
                 Log.i("LVSRND", "Encoding FPS: ${LVSConstants.fps}")
-                encoder.configure(LVSConstants.encodingVideoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
                 break
             } catch(e: MediaCodec.CodecException) {
                 if (e.errorCode == -1010) {
                     LVSConstants.fps /= 2
+                    Log.i("LVSRND", "FPS Adjusted to ${LVSConstants.fps}")
                 } else {
-                    Log.i("LVSRND", "Unexpected Codec Error, Code: ${e.errorCode}")
+                    Log.e("LVSRND", "Unexpected Codec Error, Code: ${e.errorCode}")
                 }
+                encoder?.release()
+                encoder = null
             }
         }
 
-        encoder.setInputSurface(encodingSurface)
-        encoder.start()
+        encoder?.setCallback(this)
+        encoder?.setInputSurface(encodingSurface)
+        encoder?.start()
+    }
+
+    fun startEncoder(encodingSurface: Surface) {
+        if (!isEncoderRunning) {
+            isEncoderRunning = true
+
+            encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+            encoder?.setCallback(this)
+            encoder?.configure(LVSConstants.encodingVideoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            encoder?.setInputSurface(encodingSurface)
+            encoder?.start()
+        }
     }
 
     fun stopEncoder() {
-        encoder.stop()
+        if (isEncoderRunning) {
+            encodingThread?.interrupt()
+            encodingConfigSent = false
+            isEncoderRunning = false
+            encoder?.signalEndOfInputStream()
+            encoder?.flush()
+            encoder?.stop()
+            encoder?.setCallback(null)
+            encoder?.release()
+        }
     }
 
     override fun onInputBufferAvailable(p0: MediaCodec, p1: Int) = Unit
@@ -51,27 +78,36 @@ object LVSEncoder: MediaCodec.Callback() {
     override fun onOutputBufferAvailable(codec: MediaCodec, index: Int, info: MediaCodec.BufferInfo) {
         if (!encodingConfigSent) return
 
-        Thread {
-            val outputBuffer: ByteBuffer? = codec.getOutputBuffer(index)
-            val byteBuffer: ByteBuffer
+        encodingThread = Thread {
+            if (Thread.currentThread().isInterrupted) return@Thread
 
-            if (outputBuffer != null) {
-                byteBuffer = ByteBuffer.allocate(outputBuffer.limit())
+            try {
+                val outputBuffer: ByteBuffer? = codec.getOutputBuffer(index)
+                val byteBuffer: ByteBuffer
 
-                byteBuffer.put(outputBuffer)
-                byteBuffer.flip()
+                if (outputBuffer != null) {
+                    byteBuffer = ByteBuffer.allocate(outputBuffer.limit())
 
-                delegate?.onDataAvailable(byteBuffer)
-            } else {
-                return@Thread
+                    byteBuffer.put(outputBuffer)
+                    byteBuffer.flip()
+
+                    delegate?.onDataAvailable(byteBuffer)
+                } else {
+                    return@Thread
+                }
+
+                if (encodingConfigSent && isEncoderRunning)codec.releaseOutputBuffer(index, false)
+            } catch (exc: InterruptedException) {
+                Log.i("LVSRND", "Encoding thread is interrupted")
             }
 
-            codec.releaseOutputBuffer(index, false)
-        }.start()
+        }
+
+        encodingThread?.start()
     }
 
     override fun onError(p0: MediaCodec, p1: MediaCodec.CodecException) {
-        Log.i("LVSRND", "Error during encoding: ${p1.localizedMessage}")
+        Log.e("LVSRND", "Error during encoding: ${p1.localizedMessage} Error Code: ${p1.errorCode}")
     }
 
     override fun onOutputFormatChanged(p0: MediaCodec, mediaFormat: MediaFormat) {

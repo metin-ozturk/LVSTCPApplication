@@ -13,7 +13,6 @@ import com.lvs.lvstcpapplication.managers.LVSP2PManager
 
 class LVSWifiDirectBroadcastReceiver(private val manager: WifiP2pManager, private val channel : WifiP2pManager.Channel) : BroadcastReceiver() {
 
-
     override fun onReceive(context: Context?, intent: Intent?) {
 
         when(intent?.action) {
@@ -22,7 +21,8 @@ class LVSWifiDirectBroadcastReceiver(private val manager: WifiP2pManager, privat
                 when (intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1)) {
                     WifiP2pManager.WIFI_P2P_STATE_ENABLED -> {
                         Log.i("LVSRND", "P2P is enabled")
-                        manager.requestPeers(channel, LVSP2PManager.peerListListener)
+                        LVSP2PManager.disconnectFromPeerDevice(true)
+//                        manager.requestPeers(channel, LVSP2PManager.peerListListener)
                     }
                     else -> {
                         Log.e("LVSRND", "P2P is disabled")

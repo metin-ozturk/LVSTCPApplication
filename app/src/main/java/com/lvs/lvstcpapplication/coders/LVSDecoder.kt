@@ -16,22 +16,29 @@ object LVSDecoder {
     private val codec: MediaCodec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
     private val bufferInfo = MediaCodec.BufferInfo()
 
-    fun initializeAndStartDecoder(outputSurface: AtomicReference<Surface>, sps: ByteArray, pps: ByteArray) {
+    private var isDecoderRunning = false
+
+    fun initializeAndStartDecoder(outputSurface: Surface, sps: ByteArray, pps: ByteArray) {
+        if (isDecoderRunning) return
+
         val format = LVSConstants.decodingVideoFormat
         format.setByteBuffer("csd-0", ByteBuffer.wrap(sps))
         format.setByteBuffer("csd-1", ByteBuffer.wrap(pps))
-        codec.configure(format, outputSurface.get(), null, 0)
+        codec.configure(format, outputSurface, null, 0)
         codec.start()
+
+        isDecoderRunning = true
     }
 
     fun decode(data: ByteArray) {
+//        if (!isDecoderRunning) return
 //        if (isEndOfStream) codec.signalEndOfInputStream()
 
         var inputBuffer: ByteBuffer?
         var inputBufferIndex: Int
 
 
-        while(true) {
+        while (true) {
             inputBufferIndex = codec.dequeueInputBuffer(timeout)
 
             if (inputBufferIndex >= 0) {
@@ -43,7 +50,7 @@ object LVSDecoder {
             }
 
             val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, timeout)
-
+            Log.d("LVSRND", "Decoding...")
             if (outputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
                 break
             } else if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
@@ -60,8 +67,12 @@ object LVSDecoder {
 
 
     fun endDecoding() {
-        codec.stop()
-        codec.reset()
-        codec.release()
+        if (isDecoderRunning) {
+            isDecoderRunning = false
+            codec.stop()
+            codec.reset()
+//            codec.release()
+//            retrievedSurface?.release()
+        }
     }
 }

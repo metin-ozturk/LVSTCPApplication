@@ -6,7 +6,7 @@ import android.media.MediaFormat
 object LVSConstants {
     var bitRate : Int = 1280 * 720 * 3
     var recordingFps = 60
-    var fps = 30
+    var fps : Int = 30
     const val recordingBitRate = 1280 * 720 * 3
     const val width = 1280
     const val height = 720
@@ -43,7 +43,11 @@ object LVSConstants {
 enum class LVSTCPDataType(val value: Int) {
     VideoPartialData(1),
     VideoPartialDataTransmissionCompleted(2),
-    VideoConfigurationData(3),
-    RecordedVideoInProgress(4),
-    RecordedVideoEnded(5)
+    RecordingData(3),
+    DrawingData(4),
+    VideoConfigurationData(5),
+    RecordedVideoInProgress(6),
+    RecordedVideoEnded(7),
+    SoundTriggerData(8),
+    StreamStatus(9)
 }

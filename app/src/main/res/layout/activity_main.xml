@@ -13,29 +13,22 @@
         android:orientation="horizontal">
 
         <Button
-            android:id="@+id/record_button"
+            android:id="@+id/discover_peers_button"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:layout_margin="5dp"
             android:layout_weight="1"
-            android:text="Start Recording"
-            android:visibility="gone" />
+            android:text="Discover Peers" />
+
 
         <Button
-            android:id="@+id/transmitter_button"
+            android:id="@+id/socket_connection_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_margin="5dp"
             android:layout_weight="1"
-            android:text="Be Transmitter" />
-
-        <Button
-            android:id="@+id/receiver_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="5dp"
-            android:layout_weight="1"
-            android:text="Be Receiver" />
+            android:text="Stop Stream"
+            android:visibility="gone"/>
 
     </LinearLayout>
 
