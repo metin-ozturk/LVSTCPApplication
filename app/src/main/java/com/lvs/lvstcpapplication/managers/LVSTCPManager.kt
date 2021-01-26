@@ -5,8 +5,10 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
 import androidx.core.content.ContextCompat.getSystemService
+import com.lvs.lvstcpapplication.coders.LVSEncoder
 import com.lvs.lvstcpapplication.helpers.LVSConstants
 import com.lvs.lvstcpapplication.helpers.LVSTCPDataType
+import com.lvs.lvstcpapplication.helpers.LVSyncSoundTriggeringStatus
 import kotlinx.coroutines.*
 import java.io.*
 import java.net.*
@@ -15,17 +17,20 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
 
-object LVSTCPManager {
+object LVSTCPManager : LVSEncoder.LVSEncoderDelegate {
 
     interface LVSTCPManagerInterface {
         fun connectedToReceiver()
         fun startedToHost(sps: ByteArray, pps: ByteArray)
         fun retrievedData(byteArray: ByteArray)
         fun streamStatusChanged(isTransactionOn: Boolean): Job
-        fun recordedVideoTransmissionFinalized(file: File)
+        fun recordedVideoTransmissionFinalized(file: File): Job
+        fun recordingStateChanged(state: Boolean)
+        fun soundTriggeringInfoRetrieved(state: LVSyncSoundTriggeringStatus, beforeDuration: Int? = null, afterDuration: Int? = null)
     }
 
     var delegate: LVSTCPManagerInterface? = null
+
 
     private var sps: ByteArray? = null
     private var pps: ByteArray? = null
@@ -50,6 +55,7 @@ object LVSTCPManager {
     fun startTCPManagerWithWifiDirect(context: Context, inetAddress: InetAddress?) {
         isHost = inetAddress == null
         retrievedContext = context
+        LVSEncoder.delegate = this
 
         if (isHost) {
             beHost()
@@ -119,8 +125,6 @@ object LVSTCPManager {
         sps = null
         pps = null
         partialVideoDataArray = null
-//        if (isHost) discoveryManager?.unregisterService(registrationListener)
-//        if (isHost) discoveryManager?.unregisterService(registrationListener) else discoveryManager?.stopServiceDiscovery(discoveryListener)
     }
 
     fun sendEncodedData(dataType: LVSTCPDataType, byteBuffer: ByteBuffer) {
@@ -248,6 +252,16 @@ object LVSTCPManager {
                         Log.d("LVSRND", "Received Video Configuration Data; FPS: ${LVSConstants.fps} Bitrate: ${LVSConstants.bitRate}.")
                     }
 
+                    LVSTCPDataType.RecordingData.value -> {
+                        val recordingStatus = inputStream?.readInt() ?: continue
+
+                        when (recordingStatus) {
+                            0 -> delegate?.recordingStateChanged(false)
+                            1 -> delegate?.recordingStateChanged(true)
+                        }
+
+                    }
+
                     LVSTCPDataType.RecordedVideoInProgress.value -> {
                         Log.d("LVSRND", "Received Recorded Video Packet")
 
@@ -272,6 +286,21 @@ object LVSTCPManager {
 
                     }
 
+                    LVSTCPDataType.SoundTriggerData.value -> {
+                        val statusValue = inputStream?.readInt() ?: continue
+
+                        if (statusValue == LVSyncSoundTriggeringStatus.Ended.value) {
+                            val beforeDuration = inputStream?.readInt() ?: continue
+                            val afterDuration = inputStream?.readInt() ?: continue
+
+                            delegate?.soundTriggeringInfoRetrieved(LVSyncSoundTriggeringStatus.Ended, beforeDuration, afterDuration)
+                        } else if (statusValue == LVSyncSoundTriggeringStatus.Started.value) {
+                            delegate?.soundTriggeringInfoRetrieved(LVSyncSoundTriggeringStatus.Started)
+                        } else {
+                            delegate?.soundTriggeringInfoRetrieved(LVSyncSoundTriggeringStatus.Cancelled)
+                        }
+                    }
+
 
                     LVSTCPDataType.StreamStatus.value -> {
                         val streamStatus = inputStream?.readInt() ?: continue
@@ -292,4 +321,34 @@ object LVSTCPManager {
         }
     }
 
+    override fun onDataAvailable(byteBuffer: ByteBuffer) {
+        if (!LVSP2PManager.isTransactionOn) return
+        if (!LVSP2PManager.isVideoConfigDataSent) {
+            val byteBufferToBeSent = ByteBuffer.allocate(8)
+            byteBufferToBeSent.putInt(LVSConstants.fps)
+            byteBufferToBeSent.putInt(LVSConstants.bitRate)
+            sendEncodedData(LVSTCPDataType.VideoConfigurationData, ByteBuffer.wrap(byteBufferToBeSent.array()))
+            LVSP2PManager.changeVideoConfigDataTransmissionStatus(true)
+        }
+
+        val byteArray = byteBuffer.array()
+        val dataLength = byteArray.count()
+
+        val maxLoopCount = dataLength / LVSConstants.tcpPacketSize
+        var loopCounter = 0
+
+        while (loopCounter < maxLoopCount) {
+            val videoDataArray = byteArray.sliceArray((loopCounter * LVSConstants.tcpPacketSize) until (loopCounter * LVSConstants.tcpPacketSize + LVSConstants.tcpPacketSize))
+            sendEncodedData(LVSTCPDataType.VideoPartialData, ByteBuffer.wrap(videoDataArray))
+            loopCounter++
+        }
+
+        val lastLoopByteSize = dataLength % LVSConstants.tcpPacketSize
+        if (lastLoopByteSize > 0) {
+            val lastVideoArray = byteArray.sliceArray((loopCounter * LVSConstants.tcpPacketSize) until (loopCounter * LVSConstants.tcpPacketSize + lastLoopByteSize))
+            sendEncodedData(LVSTCPDataType.VideoPartialData, ByteBuffer.wrap(lastVideoArray))
+        }
+
+        sendEncodedData(LVSTCPDataType.VideoPartialDataTransmissionCompleted, ByteBuffer.wrap(ByteArray(0)))
+    }
 }

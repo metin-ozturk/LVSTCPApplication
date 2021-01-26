@@ -8,10 +8,15 @@ import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pManager
 import android.net.wifi.p2p.WifiP2pManager.GroupInfoListener
 import android.util.Log
+import android.view.SurfaceView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import com.lvs.lvstcpapplication.MainActivity
 import com.lvs.lvstcpapplication.broadcastReceivers.LVSWifiDirectBroadcastReceiver
+import com.lvs.lvstcpapplication.coders.LVSDecoder
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.net.InetAddress
 
 
@@ -19,6 +24,7 @@ object LVSP2PManager {
 
     interface LVSP2PManagerDelegate {
         fun onConnectionStatusChanged(isConnected: Boolean)
+        fun transactionStatusChanged(status: Boolean)
     }
 
     var delegate: LVSP2PManagerDelegate? = null
@@ -32,17 +38,28 @@ object LVSP2PManager {
     private var devices = arrayListOf<WifiP2pDevice>()
     private var selectedDeviceIdx = -1
 
+
     var isTransmitter: Boolean? = null
     var isHost: Boolean? = null
 
     var isConnectedToPeer = false
         private set(value) {
             if (field != value && !value) {
+                adaptToConnectionStatusChange(false)
                 delegate?.onConnectionStatusChanged(false)
             }
             alertDialog?.dismiss()
             field = value
         }
+
+    var isRecordingOn = false
+        private set
+
+    var isTransactionOn = false
+        private set
+
+    var isVideoConfigDataSent = false
+        private set
 
     var inetAddress : InetAddress? = null
 
@@ -96,6 +113,8 @@ object LVSP2PManager {
             if (isTransmitter == null) isTransmitter = false
             isHost = isGroupOwner
             isConnectedToPeer = true
+
+            adaptToConnectionStatusChange(true)
             delegate?.onConnectionStatusChanged(true)
         }
     }
@@ -142,7 +161,6 @@ object LVSP2PManager {
     }
 
     private fun connectToPeerDevice() {
-
         if (devices.isEmpty() && selectedDeviceIdx != -1) return
         val config = WifiP2pConfig()
         config.deviceAddress = devices[selectedDeviceIdx].deviceAddress
@@ -166,6 +184,7 @@ object LVSP2PManager {
             isConnectedToPeer = false
             inetAddress = null
             isTransmitter = false
+            isRecordingOn = false
 
             p2pManager?.requestGroupInfo(channel) { group ->
                 if (group != null) {
@@ -182,6 +201,51 @@ object LVSP2PManager {
             }
         }
 
+    }
+
+
+    // Recording
+
+    fun toggleRecordingStatus() {
+        if (isTransmitter == true) {
+            if (!isRecordingOn) LVSCameraManager.startRecording() else LVSCameraManager.stopRecording()
+        }
+
+        isRecordingOn = !isRecordingOn
+    }
+
+    fun setTransactionStatus(status: Boolean? = null) {
+        isTransactionOn = status ?: !isTransactionOn
+        delegate?.transactionStatusChanged(isTransactionOn)
+    }
+
+    fun changeVideoConfigDataTransmissionStatus(status: Boolean) {
+        isVideoConfigDataSent = status
+    }
+
+    private fun adaptToConnectionStatusChange(isConnected: Boolean) {
+        if (!isConnected) {
+            LVSTCPManager.stopTCPManager()
+            if (isTransmitter == true && isTransactionOn) {
+                LVSCameraManager.stopCameraManager()
+            } else if (isTransmitter == false) {
+                LVSDecoder.endDecoding()
+            }
+
+            isVideoConfigDataSent = false
+            isHost = null
+            isTransmitter = null
+        } else {
+//            if (isTransmitter == true) initializeCameraView()
+
+            val bgScope = CoroutineScope(Dispatchers.IO)
+            bgScope.launch {
+                retrievedActivity?.let { LVSTCPManager.startTCPManagerWithWifiDirect(it, LVSP2PManager.inetAddress) }
+
+            }
+
+            setTransactionStatus(true)
+        }
     }
 
 }

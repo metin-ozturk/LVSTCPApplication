@@ -59,6 +59,8 @@ object LVSCameraManager {
     private var isRecording = false
     var recordedVideoFileLength: Int? = null
 
+    private var retrievedContext: Context? = null
+
     fun initializeCameraManager(context: Context, previewSurface: Surface, retrievedEncodingSurface: Surface? = null) = CoroutineScope(Dispatchers.Main).launch {
         if (retrievedEncodingSurface == null) {
             cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -66,6 +68,7 @@ object LVSCameraManager {
             camera = openCamera(cameraManager, cameraManager.cameraIdList.first(), cameraHandler)
         }
 
+        retrievedContext = context
         createFile(context)
 
         Log.d("OSMAN", "Initialize Camera Manager Called: $retrievedEncodingSurface")
@@ -103,7 +106,6 @@ object LVSCameraManager {
         delegate?.cameraInitialized(encodingSurface)
 
         if (retrievedEncodingSurface != null) LVSEncoder.startEncoder(encodingSurface)
-//        if (retrievedEncodingSurface != null) LVSEncoder.startEncoder(LVSEncoder.encodingSurface!!)
 
     }
 
@@ -190,6 +192,9 @@ object LVSCameraManager {
         }
 
         LVSTCPManager.sendEncodedData(LVSTCPDataType.RecordedVideoEnded, ByteBuffer.wrap(ByteArray(0)))
+
+        retrievedContext?.let { initializeCameraManager(it, previewSurface, encodingSurface) }
+
     }
 
     private fun getMaximumCameraFPS() : Int? {
