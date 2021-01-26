@@ -51,3 +51,14 @@ enum class LVSTCPDataType(val value: Int) {
     SoundTriggerData(8),
     StreamStatus(9)
 }
+
+enum class RecordingState(val value: Int) {
+    Stop(0),
+    Start(1)
+}
+
+enum class LVSyncSoundTriggeringStatus(val value: Int) {
+    Started(1),
+    Ended(2),
+    Cancelled(3)
+}

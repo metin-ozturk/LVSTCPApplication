@@ -10,47 +10,55 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:orientation="vertical">
 
-        <Button
-            android:id="@+id/discover_peers_button"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:layout_margin="5dp"
-            android:layout_weight="1"
-            android:text="Discover Peers" />
-
-
-        <Button
-            android:id="@+id/socket_connection_button"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="5dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/discover_peers_button"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_margin="2dp"
+                android:layout_weight="1"
+                android:text="Discover Peers" />
+
+
+            <Button
+                android:id="@+id/socket_connection_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="2dp"
+                android:layout_weight="1"
+                android:text="Stop Stream"
+                android:visibility="gone"/>
+
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/record_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="2dp"
             android:layout_weight="1"
-            android:text="Stop Stream"
-            android:visibility="gone"/>
+            android:text="Start Recording"
+            android:visibility="gone" />
 
     </LinearLayout>
-
-    <com.lvs.lvstcpapplication.helpers.CameraView
-        android:id="@+id/lvs_camera_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:visibility="gone">
-
-        <com.lvs.lvstcpapplication.helpers.CameraFrameView
-            android:id="@+id/lvs_camera_frame_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-
-    </com.lvs.lvstcpapplication.helpers.CameraView>
 
 
     <SurfaceView
         android:id="@+id/camera_view"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_weight="1" />
+        android:layout_height="match_parent" />
+
+    <VideoView
+        android:id="@+id/video_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:layout_gravity="center_horizontal"/>
 
 </LinearLayout>
